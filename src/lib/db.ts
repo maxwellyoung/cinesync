@@ -1,32 +1,46 @@
-import fs from "fs";
-import path from "path";
+import { supabase } from "./supabase";
 import { Movie } from "./api";
 
-const DB_PATH = path.join(process.cwd(), "data", "watchlists.json");
+export async function getWatchlist(userId: string): Promise<Movie[]> {
+  const { data, error } = await supabase
+    .from("watchlist")
+    .select("*")
+    .eq("user_id", userId);
 
-interface WatchlistDB {
-  [userId: string]: Movie[];
-}
-
-function ensureDBExists() {
-  const dir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  if (error) {
+    console.error("Error fetching watchlist:", error);
+    return [];
   }
-  if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify({}));
+
+  return data || [];
+}
+
+export async function saveWatchlist(
+  userId: string,
+  movie: Movie
+): Promise<void> {
+  const { error } = await supabase
+    .from("watchlist")
+    .upsert({ user_id: userId, ...movie });
+
+  if (error) {
+    console.error("Error saving to watchlist:", error);
+    throw error;
   }
 }
 
-export function getWatchlist(userId: string): Movie[] {
-  ensureDBExists();
-  const data = JSON.parse(fs.readFileSync(DB_PATH, "utf-8")) as WatchlistDB;
-  return data[userId] || [];
-}
+export async function removeFromWatchlist(
+  userId: string,
+  movieId: number
+): Promise<void> {
+  const { error } = await supabase
+    .from("watchlist")
+    .delete()
+    .eq("user_id", userId)
+    .eq("id", movieId);
 
-export function saveWatchlist(userId: string, watchlist: Movie[]): void {
-  ensureDBExists();
-  const data = JSON.parse(fs.readFileSync(DB_PATH, "utf-8")) as WatchlistDB;
-  data[userId] = watchlist;
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  if (error) {
+    console.error("Error removing from watchlist:", error);
+    throw error;
+  }
 }

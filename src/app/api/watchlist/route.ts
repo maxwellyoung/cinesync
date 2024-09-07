@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { getWatchlist, saveWatchlist } from "@/lib/db";
+import { getWatchlist, saveWatchlist, removeFromWatchlist } from "@/lib/db";
 import { Movie } from "@/lib/api";
+
+export async function GET() {
+  const { userId } = auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const watchlist = await getWatchlist(userId);
+  return NextResponse.json(watchlist);
+}
 
 export async function POST(req: Request) {
   const { userId } = auth();
@@ -9,10 +19,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { movie } = await req.json();
-  const watchlist = getWatchlist(userId);
-  watchlist.push(movie);
-  saveWatchlist(userId, watchlist);
+  const movie: Movie = await req.json();
+  await saveWatchlist(userId, movie);
 
   return NextResponse.json({ success: true });
 }
@@ -33,11 +41,7 @@ export async function DELETE(req: Request) {
     );
   }
 
-  const watchlist = getWatchlist(userId);
-  const updatedWatchlist = watchlist.filter(
-    (m: Movie) => m.id !== parseInt(movieId)
-  );
-  saveWatchlist(userId, updatedWatchlist);
+  await removeFromWatchlist(userId, parseInt(movieId));
 
   return NextResponse.json({ success: true });
 }

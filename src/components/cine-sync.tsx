@@ -372,8 +372,7 @@ export function CineSync({ initialWatchlist }: { initialWatchlist: Movie[] }) {
       };
 
       if (!watchlist.some((m) => m.title === newMovie.title)) {
-        const updatedWatchlist = [...watchlist, newMovie];
-        setWatchlist(updatedWatchlist);
+        setWatchlist((prev) => [...prev, newMovie]);
         setAddedToWatchlist(newMovie.id);
         setTimeout(() => setAddedToWatchlist(null), 2000);
 
@@ -381,14 +380,10 @@ export function CineSync({ initialWatchlist }: { initialWatchlist: Movie[] }) {
           try {
             const response = await fetch("/api/watchlist", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ userId: user.id, movie: newMovie }),
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(newMovie),
             });
-            if (!response.ok) {
-              throw new Error("Failed to save to watchlist");
-            }
+            if (!response.ok) throw new Error("Failed to save to watchlist");
           } catch (error) {
             console.error("Error saving to watchlist:", error);
             toast({
@@ -421,17 +416,14 @@ export function CineSync({ initialWatchlist }: { initialWatchlist: Movie[] }) {
   };
 
   const removeFromWatchlist = async (movieId: number) => {
-    const updatedWatchlist = watchlist.filter((m) => m.id !== movieId);
-    setWatchlist(updatedWatchlist);
+    setWatchlist((prev) => prev.filter((m) => m.id !== movieId));
 
     if (user) {
       try {
         const response = await fetch(`/api/watchlist?movieId=${movieId}`, {
           method: "DELETE",
         });
-        if (!response.ok) {
-          throw new Error("Failed to remove from watchlist");
-        }
+        if (!response.ok) throw new Error("Failed to remove from watchlist");
       } catch (error) {
         console.error("Error removing from watchlist:", error);
         toast({
