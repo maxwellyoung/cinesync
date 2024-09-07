@@ -8,6 +8,15 @@
       "rating": 7.4,
       "overview": "A secret agent embarks on a dangerous, time-bending mission to prevent the start of World War III.",
       "poster_path": null
+    },
+    {
+      "id": 1725722977294,
+      "title": "12 Years a Slave",
+      "year": 2013,
+      "director": "Steve McQueen",
+      "rating": 8.1,
+      "overview": "In the pre-Civil War United States, Solomon Northup, a free black man from upstate New York, is abducted and sold into slavery.",
+      "poster_path": null
     }
   ]
 }
