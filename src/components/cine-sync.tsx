@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +19,6 @@ import { toast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { generateMovie, Movie } from "@/lib/api";
 import Image from "next/image";
-import Link from "next/link";
 
 interface DotMatrixProps {
   dots: number[];
@@ -50,35 +51,37 @@ interface MenuButtonProps {
 }
 
 const MenuButton: React.FC<MenuButtonProps> = ({ label, icon, onClick }) => (
-  <motion.button
-    className="bg-secondary rounded-lg p-6 w-full h-full flex flex-col items-start justify-between overflow-hidden relative shadow-inner"
-    whileHover={{ scale: 1.02, boxShadow: "0 0 10px rgba(255,255,255,0.2)" }}
-    whileTap={{ scale: 0.98 }}
-    transition={{ duration: 0.2 }}
-    onClick={onClick}
-  >
-    <motion.span
-      className="text-2xl font-light z-10"
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ delay: 0.1 }}
-    >
-      {label}
-    </motion.span>
-    <motion.div
-      className="self-end z-10"
-      initial={{ scale: 0 }}
-      animate={{ scale: 1 }}
-      transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-    >
-      {icon}
-    </motion.div>
-    <motion.div
-      className="absolute inset-0 bg-primary opacity-0"
-      whileHover={{ opacity: 0.1 }}
+  <Link href={`/?view=${label.toLowerCase()}`} passHref legacyBehavior>
+    <motion.a
+      className="bg-secondary rounded-lg p-6 w-full h-full flex flex-col items-start justify-between overflow-hidden relative shadow-inner"
+      whileHover={{ scale: 1.02, boxShadow: "0 0 10px rgba(255,255,255,0.2)" }}
+      whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.2 }}
-    />
-  </motion.button>
+      onClick={onClick}
+    >
+      <motion.span
+        className="text-2xl font-light z-10"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.1 }}
+      >
+        {label}
+      </motion.span>
+      <motion.div
+        className="self-end z-10"
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+      >
+        {icon}
+      </motion.div>
+      <motion.div
+        className="absolute inset-0 bg-primary opacity-0"
+        whileHover={{ opacity: 0.1 }}
+        transition={{ duration: 0.2 }}
+      />
+    </motion.a>
+  </Link>
 );
 
 interface LogoProps {
@@ -86,17 +89,39 @@ interface LogoProps {
 }
 
 const Logo: React.FC<LogoProps> = ({ onAboutClick }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const logoDots = [
+    0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0,
+  ];
+
   return (
     <div className="flex items-center space-x-4">
       <motion.div
-        className="w-10 h-10 bg-gray-300 dark:bg-gray-700 rounded-full cursor-pointer"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        className="w-10 h-10 cursor-pointer"
+        onHoverStart={() => setIsHovered(true)}
+        onHoverEnd={() => setIsHovered(false)}
         onClick={onAboutClick}
-      />
+      >
+        <div className="grid grid-cols-5 gap-0.5">
+          {logoDots.map((dot, index) => (
+            <motion.div
+              key={index}
+              className={`w-1.5 h-1.5 rounded-full ${
+                dot ? "bg-primary" : "bg-transparent"
+              }`}
+              initial={{ opacity: dot ? 0.5 : 0 }}
+              animate={{
+                opacity: isHovered ? (dot ? 1 : 0.2) : dot ? 0.5 : 0,
+                scale: isHovered ? (dot ? 1.2 : 1) : 1,
+              }}
+              transition={{ duration: 0.3 }}
+            />
+          ))}
+        </div>
+      </motion.div>
       <Link
         href="/"
-        className="text-gray-800 dark:text-gray-200 hover:text-primary dark:hover:text-primary transition-colors duration-300"
+        className="text-foreground hover:text-primary transition-colors duration-300"
       >
         <motion.h1
           className="text-4xl font-light cursor-pointer"
@@ -148,11 +173,8 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         <div className="w-16 h-16 mb-4">
           <DotMatrix
             dots={[
-              0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0,
-              1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1,
-              1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1,
-              1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
-              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0,
+              1, 0, 0,
             ]}
             size={10}
           />
@@ -175,11 +197,8 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         <div className="w-16 h-16 mb-4">
           <DotMatrix
             dots={[
-              1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0,
-              1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0,
-              1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0,
-              0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
-              0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+              1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1,
+              1, 1, 1,
             ]}
             size={10}
           />
@@ -201,11 +220,8 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         <div className="w-16 h-16 mb-4">
           <DotMatrix
             dots={[
-              0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1,
-              0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1,
-              0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1,
-              1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1,
-              1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
+              0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0,
+              0, 0, 1,
             ]}
             size={10}
           />
@@ -270,11 +286,15 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
   </div>
 );
 
-export function CineSync() {
+export function CineSync({ initialView }: { initialView?: string }) {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [view, setView] = useState<
     "menu" | "discover" | "watchlist" | "premium"
-  >("menu");
+  >(
+    initialView && ["discover", "watchlist", "premium"].includes(initialView)
+      ? (initialView as "discover" | "watchlist" | "premium")
+      : "menu"
+  );
   const [movie, setMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [prompt, setPrompt] = useState<string>("");
@@ -282,6 +302,17 @@ export function CineSync() {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [rating, setRating] = useState<number | null>(null);
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const view = searchParams.get("view");
+    if (view && ["discover", "watchlist", "premium"].includes(view)) {
+      setView(view as "discover" | "watchlist" | "premium");
+    } else {
+      setView("menu");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const root = window.document.documentElement;
