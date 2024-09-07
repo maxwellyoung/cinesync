@@ -1,55 +1,60 @@
-import { NextResponse } from "next/server";
-import fetch from "node-fetch";
+import OpenAI from "openai";
+import { OpenAIStream, StreamingTextResponse } from "ai";
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY;
-const TMDB_API_URL = "https://api.themoviedb.org/3";
+// Create an OpenAI API client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
 
-export async function POST(request: Request) {
-  const { prompt } = await request.json();
+// IMPORTANT! Set the runtime to edge
+export const runtime = "edge";
 
-  try {
-    // Search for movies based on the prompt
-    const searchResponse = await fetch(
-      `${TMDB_API_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(
-        prompt
-      )}&language=en-US&page=1&include_adult=false`
-    );
-    const searchData = await searchResponse.json();
+export async function POST(req: Request) {
+  // Extract the `prompt` from the body of the request
+  const { prompt } = await req.json();
 
-    if (searchData.results && searchData.results.length > 0) {
-      const movie = searchData.results[0];
+  // Ask OpenAI for a streaming chat completion given the prompt
+  const response = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo",
+    stream: true,
+    messages: [
+      {
+        role: "system",
+        content: `You are a movie recommendation system. Respond with a movie suggestion in the following JSON format:
+        {
+          "title": "Movie Title",
+          "year": 2023,
+          "director": "Director Name",
+          "rating": 8.5,
+          "overview": "Brief movie overview"
+        }
+        If you cannot provide a movie recommendation, respond with: {"error": "Unable to generate movie recommendation"}
+        If the user provides a watchlist, consider those movies when making recommendations.`,
+      },
+      { role: "user", content: prompt },
+    ],
+  });
 
-      // Fetch additional details for the movie
-      const detailsResponse = await fetch(
-        `${TMDB_API_URL}/movie/${movie.id}?api_key=${TMDB_API_KEY}&language=en-US`
-      );
-      const detailsData = await detailsResponse.json();
+  // Convert the response into a friendly text-stream
+  const stream = OpenAIStream(response, {
+    onCompletion: (completion) => {
+      try {
+        const movieData = JSON.parse(completion);
+        if (
+          !movieData.title ||
+          !movieData.year ||
+          !movieData.director ||
+          !movieData.rating ||
+          !movieData.overview
+        ) {
+          console.error("Invalid movie data:", movieData);
+        }
+      } catch (error) {
+        console.error("Error parsing movie data:", error);
+      }
+    },
+  });
 
-      return NextResponse.json({
-        id: movie.id,
-        title: movie.title,
-        year: new Date(movie.release_date).getFullYear(),
-        director:
-          detailsData.credits?.crew.find(
-            (person: { job: string }) => person.job === "Director"
-          )?.name || "Unknown",
-        rating: movie.vote_average,
-        overview: movie.overview,
-        poster_path: movie.poster_path
-          ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-          : null,
-      });
-    } else {
-      return NextResponse.json(
-        { error: "No movies found matching the prompt" },
-        { status: 404 }
-      );
-    }
-  } catch (error) {
-    console.error("Error generating movie:", error);
-    return NextResponse.json(
-      { error: "Failed to generate movie" },
-      { status: 500 }
-    );
-  }
+  // Respond with the stream
+  return new StreamingTextResponse(stream);
 }

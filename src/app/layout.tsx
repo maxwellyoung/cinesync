@@ -1,5 +1,5 @@
-import { ClerkProvider, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
-import { SignInButton } from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 import type { Metadata } from "next";
 
@@ -17,15 +17,9 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body>
-          <header className="p-4 flex justify-end">
-            <SignedOut>
-              <SignInButton />
-            </SignedOut>
-            <SignedIn>
-              <UserButton afterSignOutUrl="/" />
-            </SignedIn>
-          </header>
-          <main>{children}</main>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            {children}
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>
