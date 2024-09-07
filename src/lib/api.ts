@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getWatchlist as dbGetWatchlist } from "./db";
 
 console.log("Environment variables:", {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "Set" : "Not set",
@@ -100,21 +101,5 @@ export async function generateMovie(prompt: string): Promise<Movie> {
 }
 
 export async function getWatchlist(userId: string): Promise<Movie[]> {
-  console.log(`Fetching watchlist for user: ${userId}`);
-  // Implement this function to fetch the user's watchlist from your database
-  // For now, we'll return a mock watchlist
-  return [
-    {
-      id: 1,
-      title: "Inception",
-      year: 2010,
-      director: "Christopher Nolan",
-      rating: 8.8,
-      overview:
-        "A thief who enters the dreams of others to steal secrets from their subconscious.",
-      poster_path:
-        "https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg",
-    },
-    // Add more mock movies as needed
-  ];
+  return dbGetWatchlist(userId);
 }

@@ -363,11 +363,11 @@ export function CineSync({ initialWatchlist }: { initialWatchlist: Movie[] }) {
 
       const newMovie: Movie = {
         id: Date.now(),
-        title: movie.title.trim(),
-        year: parseInt(movie.year.trim(), 10),
-        director: movie.director.trim(),
-        rating: parseFloat(movie.rating.trim()),
-        overview: movie.overview.trim(),
+        title: movie.title,
+        year: movie.year,
+        director: movie.director,
+        rating: movie.rating,
+        overview: movie.overview,
         poster_path: null,
       };
 

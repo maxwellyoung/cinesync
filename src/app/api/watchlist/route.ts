@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { getWatchlist, saveWatchlist } from "@/lib/db";
+import { Movie } from "@/lib/api";
 
 export async function POST(req: Request) {
   const { userId } = auth();
@@ -8,10 +10,9 @@ export async function POST(req: Request) {
   }
 
   const { movie } = await req.json();
-
-  // Here, you would typically save the movie to your database
-  // For now, we'll just log it and return a success response
-  console.log(`Saving movie to watchlist for user ${userId}:`, movie);
+  const watchlist = getWatchlist(userId);
+  watchlist.push(movie);
+  saveWatchlist(userId, watchlist);
 
   return NextResponse.json({ success: true });
 }
@@ -32,9 +33,11 @@ export async function DELETE(req: Request) {
     );
   }
 
-  // Here, you would typically remove the movie from your database
-  // For now, we'll just log it and return a success response
-  console.log(`Removing movie from watchlist for user ${userId}:`, movieId);
+  const watchlist = getWatchlist(userId);
+  const updatedWatchlist = watchlist.filter(
+    (m: Movie) => m.id !== parseInt(movieId)
+  );
+  saveWatchlist(userId, updatedWatchlist);
 
   return NextResponse.json({ success: true });
 }
