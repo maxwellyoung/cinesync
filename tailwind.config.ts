@@ -12,7 +12,29 @@ const config: Config = {
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
-        // ... (other color definitions)
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        // Add new color variations
+        "card-hover": "hsl(var(--card-hover))",
+        "button-hover": "hsl(var(--button-hover))",
       },
       borderRadius: {
         lg: "var(--radius)",

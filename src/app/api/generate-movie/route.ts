@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { OpenAIStream, StreamingTextResponse } from "ai";
+import { getCombinedWatchlist } from "@/lib/db";
+import { Movie } from "@/lib/api";
 
 // Create an OpenAI API client
 const openai = new OpenAI({
@@ -10,17 +12,27 @@ const openai = new OpenAI({
 export const runtime = "edge";
 
 export async function POST(req: Request) {
-  // Extract the `prompt` from the body of the request
-  const { prompt } = await req.json();
+  const { prompt, userId, friendId } = await req.json();
 
-  // Ask OpenAI for a streaming chat completion given the prompt
+  let watchlist: Movie[] = [];
+  if (userId && friendId) {
+    watchlist = await getCombinedWatchlist(userId, friendId);
+  }
+
+  const watchlistContext =
+    watchlist.length > 0
+      ? `Consider the combined watchlist: ${watchlist
+          .map((m) => m.title)
+          .join(", ")}.`
+      : "";
+
   const response = await openai.chat.completions.create({
     model: "gpt-3.5-turbo",
     stream: true,
     messages: [
       {
         role: "system",
-        content: `You are a movie recommendation system. Respond with a movie suggestion in the following JSON format:
+        content: `You are a movie recommendation system. ${watchlistContext} Respond with a movie suggestion in the following JSON format:
         {
           "title": "Movie Title",
           "year": 2023,
@@ -28,8 +40,7 @@ export async function POST(req: Request) {
           "rating": 8.5,
           "overview": "Brief movie overview"
         }
-        If you cannot provide a movie recommendation, respond with: {"error": "Unable to generate movie recommendation"}
-        If the user provides a watchlist, consider those movies when making recommendations.`,
+        If you cannot provide a movie recommendation, respond with: {"error": "Unable to generate movie recommendation"}`,
       },
       { role: "user", content: prompt },
     ],

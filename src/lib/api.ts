@@ -24,7 +24,10 @@ export interface Movie {
   poster_path: string | null;
 }
 
-export async function generateMovie(prompt: string): Promise<Movie> {
+export async function generateMovie(
+  prompt: string,
+  watchlist: Movie[] = []
+): Promise<Movie> {
   if (!openai) {
     console.error("OpenAI client not initialized");
     throw new Error("OpenAI API key is not configured");
@@ -33,13 +36,19 @@ export async function generateMovie(prompt: string): Promise<Movie> {
   try {
     console.log("Sending request to OpenAI with prompt:", prompt);
 
+    const watchlistContext =
+      watchlist.length > 0
+        ? `Consider the user's watchlist: ${watchlist
+            .map((m) => m.title)
+            .join(", ")}.`
+        : "";
+
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content:
-            "You are a helpful assistant that suggests movies based on user prompts. Respond with a movie suggestion in the following format: Title|Year|Director|Rating|Overview",
+          content: `You are a helpful assistant that suggests movies based on user prompts. ${watchlistContext} Respond with a movie suggestion in the following format: Title|Year|Director|Rating|Overview`,
         },
         {
           role: "user",

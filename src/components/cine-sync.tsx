@@ -1,30 +1,38 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import {
   Sparkles,
   Star,
-  StarHalf,
-  BookmarkPlus,
+  Clapperboard,
   Trash2,
   Sun,
   Moon,
-  Check,
-  Loader2,
+  UserPlus,
+  Mail,
+  Link as LinkIcon,
+  BookmarkPlus,
+  Search,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { useUser } from "@clerk/nextjs";
 import { Movie } from "@/lib/api";
-import { SignInButton } from "@clerk/nextjs";
-import { useDebouncedCallback } from "use-debounce";
-import { useCompletion } from "ai/react";
-import { Textarea } from "@/components/ui/textarea";
+import Image from "next/image";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import {
+  getFriends,
+  getCombinedWatchlist,
+  searchUsers,
+  sendFriendRequest,
+  inviteFriend,
+  getSearchSuggestions,
+} from "@/lib/db";
+import { AuthButton } from "@/components/auth-button";
+import { useDebounce } from "use-debounce";
 
 interface DotMatrixProps {
   dots: number[];
@@ -57,8 +65,8 @@ interface MenuButtonProps {
 }
 
 const MenuButton: React.FC<MenuButtonProps> = ({ label, icon, onClick }) => (
-  <Link href={`/?view=${label.toLowerCase()}`} passHref legacyBehavior>
-    <motion.a
+  <Link href={`/?view=${label.toLowerCase()}`} passHref>
+    <motion.button
       className="bg-secondary rounded-lg p-6 w-full h-full flex flex-col items-start justify-between overflow-hidden relative shadow-inner"
       whileHover={{ scale: 1.02, boxShadow: "0 0 10px rgba(255,255,255,0.2)" }}
       whileTap={{ scale: 0.98 }}
@@ -86,7 +94,7 @@ const MenuButton: React.FC<MenuButtonProps> = ({ label, icon, onClick }) => (
         whileHover={{ opacity: 0.1 }}
         transition={{ duration: 0.2 }}
       />
-    </motion.a>
+    </motion.button>
   </Link>
 );
 
@@ -97,7 +105,7 @@ interface LogoProps {
 const Logo: React.FC<LogoProps> = ({ onAboutClick }) => {
   const [isHovered, setIsHovered] = useState(false);
   const logoDots = [
-    0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0,
+    0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0,
   ];
 
   return (
@@ -115,26 +123,23 @@ const Logo: React.FC<LogoProps> = ({ onAboutClick }) => {
               className={`w-1.5 h-1.5 rounded-full ${
                 dot ? "bg-primary" : "bg-transparent"
               }`}
-              initial={{ opacity: dot ? 0.5 : 0 }}
+              initial={{ opacity: 0 }}
               animate={{
                 opacity: isHovered ? (dot ? 1 : 0.2) : dot ? 0.5 : 0,
                 scale: isHovered ? (dot ? 1.2 : 1) : 1,
               }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.3, delay: index * 0.02 }}
             />
           ))}
         </div>
       </motion.div>
-      <Link
-        href="/"
-        className="text-foreground hover:text-primary transition-colors duration-300"
-      >
+      <Link href="/" passHref>
         <motion.h1
-          className="text-4xl font-light cursor-pointer"
+          className="text-4xl font-light cursor-pointer text-foreground"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          CineSync
+          CineBaby
         </motion.h1>
       </Link>
     </div>
@@ -163,7 +168,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
     >
-      About CineSync
+      About CineBaby
     </motion.h2>
 
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -179,8 +184,11 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         <div className="w-16 h-16 mb-4">
           <DotMatrix
             dots={[
-              0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0,
-              1, 0, 0,
+              0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+              1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1,
+              1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1,
+              1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ]}
             size={10}
           />
@@ -203,8 +211,11 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         <div className="w-16 h-16 mb-4">
           <DotMatrix
             dots={[
-              1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1,
-              1, 1, 1,
+              1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0,
+              1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0,
+              1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0,
+              0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+              0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             ]}
             size={10}
           />
@@ -226,8 +237,11 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         <div className="w-16 h-16 mb-4">
           <DotMatrix
             dots={[
-              0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0,
-              0, 0, 1,
+              0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1,
+              0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1,
+              0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1,
+              1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1,
+              1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
             ]}
             size={10}
           />
@@ -248,7 +262,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
           How It Works
         </h3>
         <p className="text-secondary-foreground">
-          CineSync uses advanced AI algorithms to analyze your preferences and
+          CineBaby uses advanced AI algorithms to analyze your preferences and
           viewing history, providing tailored movie recommendations just for
           you.
         </p>
@@ -261,7 +275,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
       animate={{ opacity: 1 }}
       transition={{ delay: 0.7 }}
     >
-      CineSync is your personal movie discovery assistant. Using advanced AI, it
+      CineBaby is your personal movie discovery assistant. Using advanced AI, it
       helps you find the perfect movie based on your preferences and mood.
     </motion.p>
 
@@ -293,48 +307,49 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
 );
 
 export function CineSync({ initialWatchlist }: { initialWatchlist: Movie[] }) {
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { isSignedIn, user } = useUser();
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [view, setView] = useState<
+    "menu" | "discover" | "watchlist" | "friends"
+  >("menu");
+  const [movie, setMovie] = useState<Movie | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   const [watchlist, setWatchlist] = useState<Movie[]>(initialWatchlist);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [friends, setFriends] = useState<string[]>([]);
+  const [selectedFriend, setSelectedFriend] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [addedToWatchlist, setAddedToWatchlist] = useState<number | null>(null);
-  const [promptIdeas, setPromptIdeas] = useState<string[]>([]);
-  const [useWatchlist, setUseWatchlist] = useState<boolean>(false);
-
-  const {
-    completion,
-    input,
-    handleInputChange,
-    handleSubmit,
-    isLoading,
-    error,
-  } = useCompletion({
-    api: "/api/generate-movie",
-  });
+  const [searchResults, setSearchResults] = useState<
+    { id: string; username: string; email: string }[]
+  >([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [friendLink] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   const searchParams = useSearchParams();
-  const view = searchParams?.get("view") || "menu";
+
+  useEffect(() => {
+    const viewParam = searchParams.get("view");
+    if (viewParam && ["discover", "watchlist", "friends"].includes(viewParam)) {
+      setView(viewParam as "discover" | "watchlist" | "friends");
+    } else {
+      setView("menu");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.toggle("dark", isDarkMode);
   }, [isDarkMode]);
 
-  const debouncedSearch = useDebouncedCallback((term: string) => {
-    if (term) {
-      const filteredWatchlist = initialWatchlist.filter((movie) =>
-        movie.title.toLowerCase().includes(term.toLowerCase())
-      );
-      setWatchlist(filteredWatchlist);
-    } else {
-      setWatchlist(initialWatchlist);
-    }
-  }, 300);
-
   useEffect(() => {
-    debouncedSearch(searchTerm);
-  }, [searchTerm, debouncedSearch, initialWatchlist]);
+    if (isSignedIn && user) {
+      getFriends(user.id).then(setFriends);
+    }
+  }, [isSignedIn, user]);
 
   const iconDots = {
     discover: [
@@ -348,247 +363,183 @@ export function CineSync({ initialWatchlist }: { initialWatchlist: Movie[] }) {
     ],
   };
 
-  const addToWatchlist = async (movieData: string) => {
-    try {
-      const movie = JSON.parse(movieData);
+  useEffect(() => {
+    if (debouncedSearchTerm && isSignedIn && user) {
+      getSearchSuggestions(user.id, debouncedSearchTerm).then(setSuggestions);
+    } else {
+      setSuggestions([]);
+    }
+  }, [debouncedSearchTerm, isSignedIn, user]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
       if (
-        !movie.title ||
-        !movie.year ||
-        !movie.director ||
-        !movie.rating ||
-        !movie.overview
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node)
       ) {
-        throw new Error("Invalid movie data");
+        setSuggestions([]);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleGenerateMovie = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      let watchlistToUse = watchlist;
+      if (selectedFriend) {
+        watchlistToUse = await getCombinedWatchlist(user!.id, selectedFriend);
       }
 
-      const newMovie: Movie = {
-        id: Date.now(),
-        title: movie.title,
-        year: movie.year,
-        director: movie.director,
-        rating: movie.rating,
-        overview: movie.overview,
-        poster_path: null,
-      };
+      const response = await fetch("/api/generate-movie", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: searchTerm,
+          userId: user?.id,
+          friendId: selectedFriend,
+          watchlist: watchlistToUse,
+        }),
+      });
 
-      if (!watchlist.some((m) => m.title === newMovie.title)) {
-        setWatchlist((prev) => [...prev, newMovie]);
-        setAddedToWatchlist(newMovie.id);
-        setTimeout(() => setAddedToWatchlist(null), 2000);
-
-        if (user) {
-          try {
-            const response = await fetch("/api/watchlist", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(newMovie),
-            });
-            if (!response.ok) throw new Error("Failed to save to watchlist");
-          } catch (error) {
-            console.error("Error saving to watchlist:", error);
-            toast({
-              title: "Error",
-              description: "Failed to save to watchlist. Please try again.",
-              variant: "destructive",
-            });
-          }
-        }
-
-        toast({
-          title: "Added to Watchlist",
-          description: `${newMovie.title} has been added to your watchlist.`,
-        });
-      } else {
-        toast({
-          title: "Already in Watchlist",
-          description: `${newMovie.title} is already in your watchlist.`,
-          variant: "destructive",
-        });
+      if (!response.ok) {
+        throw new Error("Failed to generate movie");
       }
+
+      const movieData = await response.json();
+      setMovie(movieData);
+    } catch (err) {
+      console.error("Error generating movie:", err);
+      setError("Failed to generate movie. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setSearchTerm(suggestion);
+    setSuggestions([]);
+    handleGenerateMovie();
+  };
+
+  const addToWatchlist = async (movie: Movie) => {
+    try {
+      const response = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(movie),
+      });
+
+      if (!response.ok) throw new Error("Failed to add to watchlist");
+
+      setWatchlist((prev) => [...prev, movie]);
+      toast({
+        title: "Added to Watchlist",
+        description: `${movie.title} has been added to your watchlist.`,
+      });
     } catch (error) {
       console.error("Error adding to watchlist:", error);
       toast({
         title: "Error",
-        description: "Failed to add movie to watchlist. Invalid movie data.",
+        description: "Failed to add to watchlist. Please try again.",
         variant: "destructive",
       });
     }
   };
 
   const removeFromWatchlist = async (movieId: number) => {
-    setWatchlist((prev) => prev.filter((m) => m.id !== movieId));
+    try {
+      const response = await fetch(`/api/watchlist?movieId=${movieId}`, {
+        method: "DELETE",
+      });
 
-    if (user) {
-      try {
-        const response = await fetch(`/api/watchlist?movieId=${movieId}`, {
-          method: "DELETE",
-        });
-        if (!response.ok) throw new Error("Failed to remove from watchlist");
-      } catch (error) {
-        console.error("Error removing from watchlist:", error);
-        toast({
-          title: "Error",
-          description: "Failed to remove from watchlist. Please try again.",
-          variant: "destructive",
-        });
-      }
+      if (!response.ok) throw new Error("Failed to remove from watchlist");
+
+      setWatchlist((prev) => prev.filter((m) => m.id !== movieId));
+      toast({
+        title: "Removed from Watchlist",
+        description: "The movie has been removed from your watchlist.",
+      });
+    } catch (error) {
+      console.error("Error removing from watchlist:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove from watchlist. Please try again.",
+        variant: "destructive",
+      });
     }
-
-    toast({
-      title: "Removed from Watchlist",
-      description: "The movie has been removed from your watchlist.",
-    });
   };
 
-  const renderStars = (rating: number) => {
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
+  const handleSearch = async () => {
+    try {
+      const results = await searchUsers(searchTerm);
+      setSearchResults(results);
+    } catch (error) {
+      console.error("Error searching users:", error);
+      toast({
+        title: "Error",
+        description: "Failed to search users. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
+  const handleSendFriendRequest = async (friendId: string) => {
+    try {
+      await sendFriendRequest(user!.id, friendId);
+      toast({
+        title: "Friend Request Sent",
+        description: "Your friend request has been sent.",
+      });
+    } catch (error) {
+      console.error("Error sending friend request:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send friend request. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleInviteFriend = async () => {
+    try {
+      await inviteFriend(inviteEmail);
+      toast({
+        title: "Invitation Sent",
+        description: `An invitation has been sent to ${inviteEmail}.`,
+      });
+      setInviteEmail("");
+    } catch (error) {
+      console.error("Error inviting friend:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send invitation. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const renderStars = (movie: Movie) => {
     return (
       <div className="flex items-center justify-center space-x-1">
-        {[...Array(5)].map((_, index) => (
-          <motion.span
-            key={index}
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3, delay: index * 0.1 }}
-          >
-            {index < fullStars ? (
-              <Star className="w-6 h-6 text-yellow-400 fill-current" />
-            ) : index === fullStars && hasHalfStar ? (
-              <StarHalf className="w-6 h-6 text-yellow-400 fill-current" />
-            ) : (
-              <Star className="w-6 h-6 text-gray-300" />
-            )}
-          </motion.span>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`h-6 w-6 cursor-pointer ${
+              (movie.rating || 0) >= star ? "text-yellow-400" : "text-gray-400"
+            }`}
+          />
         ))}
       </div>
     );
   };
-
-  const handleGenerateMovie = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const watchlistContext = useWatchlist
-      ? `Consider the user's watchlist: ${watchlist
-          .map((m) => m.title)
-          .join(", ")}.`
-      : "";
-    const fullPrompt = `${watchlistContext} ${input}`.trim();
-    handleInputChange({
-      target: { value: fullPrompt },
-    } as React.ChangeEvent<HTMLTextAreaElement>);
-    await handleSubmit(e);
-  };
-
-  const renderMovie = (movieData: string) => {
-    try {
-      const movie = JSON.parse(movieData);
-      if (
-        !movie.title ||
-        !movie.year ||
-        !movie.director ||
-        !movie.rating ||
-        !movie.overview
-      ) {
-        throw new Error("Invalid movie data");
-      }
-
-      return (
-        <motion.div
-          key={movie.title}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="bg-secondary/30 backdrop-blur-sm rounded-lg p-6 shadow-lg max-w-2xl w-full mx-auto"
-        >
-          <motion.h3
-            className="text-3xl font-semibold mb-2 relative inline-block"
-            whileHover="hover"
-          >
-            {movie.title}
-            <motion.div
-              className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
-              initial={{ scaleX: 0 }}
-              variants={{
-                hover: {
-                  scaleX: 1,
-                  transition: { duration: 0.3 },
-                },
-              }}
-            />
-          </motion.h3>
-          <p className="text-xl mb-4">
-            {movie.year} • Directed by {movie.director}
-          </p>
-          <div className="flex justify-center mb-4">
-            {renderStars(movie.rating)}
-          </div>
-          <p className="text-lg mb-6">{movie.overview}</p>
-          <AnimatePresence mode="wait">
-            {addedToWatchlist === movie.id ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-md"
-              >
-                <Check className="mr-2 h-5 w-5" />
-                Added to Watchlist
-              </motion.div>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <Button
-                  onClick={() => addToWatchlist(movieData)}
-                  className="group relative overflow-hidden bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-300"
-                >
-                  <motion.span
-                    className="absolute inset-0 bg-white/20"
-                    initial={{ scale: 0, opacity: 0 }}
-                    whileHover={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.3 }}
-                  />
-                  Add to Watchlist
-                  <motion.div
-                    className="ml-2 inline-block"
-                    whileHover={{ rotate: 20 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <BookmarkPlus className="h-5 w-5" />
-                  </motion.div>
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-      );
-    } catch (error) {
-      console.error("Error rendering movie:", error);
-      return (
-        <div className="text-center text-red-500">
-          Error: Unable to display movie information.
-        </div>
-      );
-    }
-  };
-
-  useEffect(() => {
-    const ideas = [
-      "A sci-fi movie with time travel",
-      "A heartwarming comedy about family",
-      "A thriller set in a small town",
-      "An animated adventure for all ages",
-      "A historical drama based on true events",
-    ];
-    setPromptIdeas(ideas);
-  }, []);
-
-  if (!isLoaded) {
-    return <div>Loading...</div>;
-  }
 
   return (
     <div className="min-h-screen p-8 flex flex-col bg-background text-foreground">
@@ -599,286 +550,362 @@ export function CineSync({ initialWatchlist }: { initialWatchlist: Movie[] }) {
         transition={{ duration: 0.5 }}
       >
         <Logo onAboutClick={() => setIsModalOpen(true)} />
-        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="rounded-full shadow-inner bg-secondary text-secondary-foreground"
-          >
-            {isDarkMode ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
-            )}
-          </Button>
-        </motion.div>
+        <div className="flex items-center space-x-4">
+          {isSignedIn && user && (
+            <span className="text-sm text-muted-foreground">
+              Hi, {user.firstName}
+            </span>
+          )}
+          <AuthButton />
+          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="rounded-full"
+            >
+              {isDarkMode ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
+            </Button>
+          </motion.div>
+        </div>
       </motion.header>
 
-      {isSignedIn ? (
-        <AnimatePresence mode="wait">
-          {view === "menu" && (
-            <motion.div
-              key="menu"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex-grow grid gri d-cols-2 gap-6"
-            >
-              <div className="col-span-1 row-span-2">
-                <MenuButton
-                  label="Discover"
-                  icon={<DotMatrix dots={iconDots.discover} />}
-                  onClick={() => {}}
-                />
-              </div>
-              <div className="col-span-1 row-span-1">
-                <MenuButton
-                  label="Watchlist"
-                  icon={<DotMatrix dots={iconDots.watchlist} />}
-                  onClick={() => {}}
-                />
-              </div>
-              <div className="col-span-1 row-span-1">
-                <MenuButton
-                  label="Premium"
-                  icon={<DotMatrix dots={iconDots.premium} />}
-                  onClick={() => {}}
-                />
-              </div>
-            </motion.div>
-          )}
-
-          {view === "discover" && (
-            <motion.div
-              key="discover"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.5 }}
-              className="flex-grow flex flex-col justify-center items-center space-y-8"
-            >
-              <motion.h2
-                className="text-4xl font-light mb-4"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-              >
-                Discover Your Next Movie
-              </motion.h2>
-              <motion.form
-                onSubmit={handleGenerateMovie}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3, duration: 0.5 }}
-                className="w-full max-w-md space-y-4"
-              >
-                <Textarea
-                  placeholder="Describe your perfect movie..."
-                  value={input}
-                  onChange={handleInputChange}
-                  className="text-xl bg-secondary/50 shadow-inner text-foreground placeholder-muted-foreground rounded-lg p-4 min-h-[60px] max-h-[200px] overflow-y-auto resize-none"
-                  rows={1}
-                />
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {promptIdeas.map((idea, index) => (
-                    <motion.button
-                      key={index}
-                      onClick={() =>
-                        handleInputChange({
-                          target: { value: idea },
-                        } as React.ChangeEvent<HTMLTextAreaElement>)
-                      }
-                      className="text-sm bg-secondary/30 hover:bg-secondary/50 text-secondary-foreground px-3 py-1.5 rounded-full transition-colors duration-200"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      {idea}
-                    </motion.button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="use-watchlist" className="text-sm">
-                    Use Watchlist
-                  </label>
-                  <Switch
-                    id="use-watchlist"
-                    checked={useWatchlist}
-                    onCheckedChange={setUseWatchlist}
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  disabled={isLoading || !input}
-                  className="text-xl py-6 px-8 bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 w-full rounded-lg"
-                >
-                  {isLoading ? (
-                    <motion.div
-                      className="flex items-center justify-center"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    >
-                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                      Discovering...
-                    </motion.div>
-                  ) : (
-                    <>
-                      Find Movie
-                      <Sparkles className="ml-2 h-5 w-5" />
-                    </>
-                  )}
-                </Button>
-              </motion.form>
-
-              {error && (
-                <motion.p
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-red-500 mt-4"
-                >
-                  {error.message}
-                </motion.p>
-              )}
-
-              {completion && renderMovie(completion)}
-            </motion.div>
-          )}
-
-          {view === "watchlist" && (
-            <motion.div
-              key="watchlist"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="flex-grow flex flex-col items-center space-y-8"
-            >
-              <motion.h2
-                className="text-4xl font-light mb-4"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                Your Watchlist
-              </motion.h2>
-              <Input
-                placeholder="Search your watchlist..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="mb-4"
+      <AnimatePresence mode="wait">
+        {view === "menu" && (
+          <motion.div
+            key="menu"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex-grow grid grid-cols-2 gap-6"
+          >
+            <div className="col-span-1 row-span-2">
+              <MenuButton
+                label="Discover"
+                icon={<DotMatrix dots={iconDots.discover} />}
+                onClick={() => setView("discover")}
               />
-              {watchlist.length === 0 ? (
-                <motion.p
-                  className="text-xl text-muted-foreground"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
+            </div>
+            <div className="col-span-1 row-span-1">
+              <MenuButton
+                label="Watchlist"
+                icon={<DotMatrix dots={iconDots.watchlist} />}
+                onClick={() => setView("watchlist")}
+              />
+            </div>
+            <div className="col-span-1 row-span-1">
+              <MenuButton
+                label="Friends"
+                icon={<DotMatrix dots={iconDots.premium} />}
+                onClick={() => setView("friends")}
+              />
+            </div>
+          </motion.div>
+        )}
+
+        {view === "discover" && (
+          <motion.div
+            key="discover"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="flex-grow flex flex-col justify-center items-center space-y-8"
+          >
+            <motion.h2
+              className="text-4xl font-light mb-4"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              Discover Your Next Movie
+            </motion.h2>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3 }}
+              className="w-full max-w-md relative"
+            >
+              <div className="relative">
+                <Input
+                  placeholder="Describe your perfect movie..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="text-xl bg-secondary shadow-inner text-foreground placeholder-muted-foreground pr-10"
+                />
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+              </div>
+              {suggestions.length > 0 && (
+                <div
+                  ref={suggestionsRef}
+                  className="absolute z-10 w-full mt-1 bg-background border border-input rounded-md shadow-lg"
                 >
-                  Your watchlist is empty. Discover some movies!
-                </motion.p>
-              ) : (
-                <motion.div
-                  className="w-full max-w-4xl space-y-4"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  {watchlist.map((movie, index) => (
-                    <motion.div
-                      key={movie.id}
-                      className="bg-secondary p-6 rounded-lg flex justify-between items-center shadow-md hover:shadow-lg transition-shadow duration-300"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      transition={{ duration: 0.2, delay: index * 0.1 }}
+                  {suggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="px-4 py-2 hover:bg-secondary cursor-pointer"
+                      onClick={() => handleSuggestionClick(suggestion)}
                     >
-                      <div>
-                        <h3 className="font-medium text-xl text-secondary-foreground">
-                          {movie.title}
-                        </h3>
-                        <p className="text-lg text-muted-foreground">
-                          {movie.year}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {renderStars(movie.rating)}
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeFromWatchlist(movie.id)}
-                            className="text-secondary-foreground hover:text-primary transition-colors duration-300"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </Button>
-                        </motion.div>
-                      </div>
-                    </motion.div>
+                      {suggestion}
+                    </div>
                   ))}
-                </motion.div>
+                </div>
               )}
             </motion.div>
-          )}
-
-          {view === "premium" && (
             <motion.div
-              key="premium"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="flex-grow flex flex-col justify-center items-center space-y-8"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.4 }}
             >
-              <motion.h2
-                className="text-4xl font-light mb-4"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
+              <Button
+                onClick={handleGenerateMovie}
+                disabled={loading || !searchTerm}
+                className="text-xl py-6 px-8 bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-shadow duration-300"
               >
-                Upgrade to Premium
-              </motion.h2>
+                {loading ? "Discovering..." : "Find Movie"}
+                <Sparkles className="ml-2 h-5 w-5" />
+              </Button>
+            </motion.div>
+
+            {error && (
               <motion.p
-                className="text-center max-w-md text-xl text-muted-foreground"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-red-500 mt-4"
+              >
+                {error}
+              </motion.p>
+            )}
+
+            {movie && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="text-center space-y-4 max-w-2xl"
+              >
+                <h3 className="text-3xl font-light">{movie.title}</h3>
+                {movie.poster_path && (
+                  <Image
+                    src={movie.poster_path}
+                    alt={movie.title}
+                    width={300}
+                    height={450}
+                    className="mx-auto rounded-lg shadow-lg"
+                  />
+                )}
+                <div className="flex items-center justify-center space-x-4 text-xl">
+                  <Clapperboard className="h-6 w-6" />
+                  <span>{movie.year}</span>
+                  <span>{movie.director}</span>
+                </div>
+                <div className="flex items-center justify-center text-xl">
+                  <Star className="h-6 w-5 text-yellow-400 mr-2" />
+                  <span className="text-2xl">{movie.rating.toFixed(1)}</span>
+                </div>
+                <p className="text-lg text-muted-foreground">
+                  {movie.overview}
+                </p>
+                {renderStars(movie)}
+                <div className="flex justify-between space-x-4">
+                  <Button
+                    onClick={() => handleGenerateMovie()}
+                    variant="outline"
+                  >
+                    Not Interested
+                  </Button>
+                  <Button
+                    onClick={() => addToWatchlist(movie)}
+                    variant="outline"
+                  >
+                    <BookmarkPlus className="mr-2 h-5 w-5" />
+                    Add to Watchlist
+                  </Button>
+                  <Button onClick={handleGenerateMovie} variant="outline">
+                    Show Me Another
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+
+        {view === "watchlist" && (
+          <motion.div
+            key="watchlist"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="flex-grow flex flex-col items-center space-y-8"
+          >
+            <motion.h2
+              className="text-4xl font-light mb-4"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              Your Watchlist
+            </motion.h2>
+            {watchlist.length === 0 ? (
+              <motion.p
+                className="text-xl text-muted-foreground"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
               >
-                Get personalized recommendations, ad-free experience, and
-                exclusive content with our Premium plan.
+                Your watchlist is empty. Discover some movies!
               </motion.p>
+            ) : (
               <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                className="w-full max-w-4xl space-y-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
               >
-                <Button className="text-xl py-6 px-8 bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-shadow duration-300">
-                  Upgrade Now
-                </Button>
+                {watchlist.map((movie, index) => (
+                  <motion.div
+                    key={movie.id}
+                    className="bg-secondary p-6 rounded-lg flex justify-between items-center shadow-md hover:shadow-lg transition-shadow duration-300"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.2, delay: index * 0.1 }}
+                  >
+                    <div>
+                      <h3 className="font-medium text-xl text-secondary-foreground">
+                        {movie.title}
+                      </h3>
+                      <p className="text-lg text-muted-foreground">
+                        {movie.year}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {renderStars(movie)}
+                      <motion.div
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFromWatchlist(movie.id)}
+                          className="text-secondary-foreground hover:text-primary transition-colors duration-300"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </Button>
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                ))}
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center justify-center flex-grow"
-        >
-          <h2 className="text-3xl font-light mb-4">Welcome to CineSync</h2>
-          <p className="text-xl text-muted-foreground mb-8">
-            Sign in to discover and track your favorite movies.
-          </p>
-          <SignInButton mode="modal">
-            <Button size="lg">Sign In</Button>
-          </SignInButton>
-        </motion.div>
-      )}
+            )}
+          </motion.div>
+        )}
+
+        {view === "friends" && (
+          <motion.div
+            key="friends"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="flex-grow flex flex-col items-center space-y-8"
+          >
+            <motion.h2
+              className="text-4xl font-light mb-4"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              Friends
+            </motion.h2>
+            <div className="w-full max-w-md space-y-4">
+              <Input
+                placeholder="Search by username or email"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <Button onClick={handleSearch}>Search</Button>
+              {searchResults.length > 0 && (
+                <ul className="space-y-2">
+                  {searchResults.map((result) => (
+                    <li
+                      key={result.id}
+                      className="flex justify-between items-center"
+                    >
+                      <span>{result.username || result.email}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSendFriendRequest(result.id)}
+                      >
+                        <UserPlus className="mr-2 h-5 w-5" />
+                        Send Friend Request
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="w-full max-w-md space-y-4">
+              <h3 className="text-2xl font-light">Invite a Friend</h3>
+              <Input
+                placeholder="Friend's email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+              <Button onClick={handleInviteFriend}>
+                <Mail className="mr-2 h-5 w-5" />
+                Send Invite
+              </Button>
+            </div>
+            <div className="w-full max-w-md space-y-4">
+              <h3 className="text-2xl font-light">Share Friend Link</h3>
+              <Button onClick={() => {}}>
+                <LinkIcon className="mr-2 h-5 w-5" />
+                Generate Friend Link
+              </Button>
+              {friendLink && (
+                <Input
+                  value={friendLink}
+                  readOnly
+                  onClick={() => navigator.clipboard.writeText(friendLink)}
+                />
+              )}
+            </div>
+            <div className="w-full max-w-md space-y-4">
+              <h3 className="text-2xl font-light">Your Friends</h3>
+              {friends.length === 0 ? (
+                <p>You haven&apos;t added any friends yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {friends.map((friend) => (
+                    <li
+                      key={friend}
+                      className="flex justify-between items-center"
+                    >
+                      <span>{friend}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedFriend(friend)}
+                      >
+                        Select for Recommendations
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isModalOpen && (
