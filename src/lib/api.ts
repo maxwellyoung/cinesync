@@ -1,98 +1,64 @@
-import OpenAI from "openai";
-import { getWatchlist as dbGetWatchlist } from "./db";
-
-console.log("Environment variables:", {
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "Set" : "Not set",
-  NODE_ENV: process.env.NODE_ENV,
-});
-
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
-  : null;
-
-console.log("OpenAI client initialized:", !!openai);
+import { supabase } from "@/lib/supabaseClient";
 
 export interface Movie {
   id: number;
   title: string;
   year: number;
   director: string;
-  rating: number;
+  rating: number | string; // Change this to allow string ratings
   overview: string;
   poster_path: string | null;
 }
 
 export async function generateMovie(
   prompt: string,
-  watchlist: Movie[] = []
-): Promise<Movie> {
-  if (!openai) {
-    console.error("OpenAI client not initialized");
-    throw new Error("OpenAI API key is not configured");
-  }
-
+  userId: string,
+  suggestedMovies: Movie[] = []
+): Promise<Movie | null> {
   try {
-    console.log("Sending request to OpenAI with prompt:", prompt);
-
-    const watchlistContext =
-      watchlist.length > 0
-        ? `Consider the user's watchlist: ${watchlist
-            .map((m) => m.title)
-            .join(", ")}.`
-        : "";
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: `You are a helpful assistant that suggests movies based on user prompts. ${watchlistContext} Respond with a movie suggestion in the following format: Title|Year|Director|Rating|Overview`,
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
+    const response = await fetch("/api/generate-movie", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt, userId, suggestedMovies }),
     });
 
-    console.log("Received response from OpenAI:", completion);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to generate movie");
+    }
 
-    const movieSuggestion = completion.choices[0]?.message?.content;
-    if (!movieSuggestion) {
-      console.error("OpenAI response did not contain a movie suggestion");
-      throw new Error("OpenAI response did not contain a movie suggestion");
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let movieSuggestion = "";
+
+    while (true) {
+      const { done, value } = await reader!.read();
+      if (done) break;
+      movieSuggestion += decoder.decode(value);
     }
 
     console.log("Raw OpenAI response:", movieSuggestion);
 
-    const parts = movieSuggestion.split("|");
-    if (parts.length !== 5) {
-      console.error(`Invalid movie suggestion format: ${movieSuggestion}`);
-      throw new Error(`Invalid movie suggestion format: ${movieSuggestion}`);
-    }
+    // Parse the movie suggestion
+    const title = movieSuggestion.match(/Title: (.+)/)?.[1];
+    const year = movieSuggestion.match(/Year: (\d{4})/)?.[1];
+    const director = movieSuggestion.match(/Director: (.+)/)?.[1];
+    const rating = movieSuggestion.match(/Rating: (.+)/)?.[1];
+    const overview = movieSuggestion.match(/Overview: (.+)/s)?.[1];
 
-    const [title, yearStr, director, ratingStr, overview] = parts;
-
-    const year = parseInt(yearStr.trim(), 10);
-    if (isNaN(year)) {
-      console.error(`Invalid year: ${yearStr}`);
-      throw new Error(`Invalid year: ${yearStr}`);
-    }
-
-    const rating = parseFloat(ratingStr.trim());
-    if (isNaN(rating)) {
-      console.error(`Invalid rating: ${ratingStr}`);
-      throw new Error(`Invalid rating: ${ratingStr}`);
+    if (!title || !year || !director || !rating || !overview) {
+      console.error("Invalid movie suggestion format:", movieSuggestion);
+      throw new Error("Failed to parse movie suggestion");
     }
 
     const movie: Movie = {
       id: Math.floor(Math.random() * 1000000),
       title: title.trim(),
-      year,
+      year: parseInt(year.trim(), 10),
       director: director.trim(),
-      rating,
+      rating: isNaN(parseFloat(rating)) ? rating.trim() : parseFloat(rating),
       overview: overview.trim(),
       poster_path: null,
     };
@@ -101,14 +67,20 @@ export async function generateMovie(
     return movie;
   } catch (error: unknown) {
     console.error("Error in generateMovie function:", error);
-    if (error instanceof Error) {
-      throw new Error(`Failed to generate movie: ${error.message}`);
-    } else {
-      throw new Error("Failed to generate movie: Unknown error");
-    }
+    throw error;
   }
 }
 
 export async function getWatchlist(userId: string): Promise<Movie[]> {
-  return dbGetWatchlist(userId);
+  const { data, error } = await supabase
+    .from("watchlist")
+    .select("*")
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Error fetching watchlist:", error);
+    return [];
+  }
+
+  return (data as Movie[]) || [];
 }
