@@ -1,44 +1,88 @@
 import { supabase } from "./supabaseClient";
 import { Database } from "./database.types";
-import { Movie } from "./types";
+import { v4 as uuidv4 } from "uuid";
 
-type Tables = Database["public"]["Tables"];
+type Movie = Database["public"]["Tables"]["movies"]["Row"];
+
+function generateUUID(userId: string): string {
+  return uuidv4({ random: Buffer.from(userId) });
+}
 
 export async function saveToWatchlist(
   userId: string,
-  movie: Omit<Tables["watchlist"]["Insert"], "user_id">
+  movie: Omit<Movie, "id">
 ): Promise<void> {
-  if (movie.id === undefined) {
-    throw new Error("Movie ID is undefined");
+  const uuidUserId = generateUUID(userId);
+
+  // Check if the user exists in the users table
+  const { error: userError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("id", uuidUserId)
+    .single();
+
+  if (userError) {
+    if (userError.code === "PGRST116") {
+      // User doesn't exist, so we'll create them
+      const { error: createUserError } = await supabase
+        .from("users")
+        .insert({ id: uuidUserId, username: `user_${userId.slice(0, 8)}` })
+        .select();
+
+      if (createUserError) {
+        console.error("Error creating user:", createUserError);
+        throw createUserError;
+      }
+    } else {
+      console.error("Error checking user:", userError);
+      throw userError;
+    }
   }
 
-  const watchlistItem = {
+  // First, insert the movie into the movies table
+  const { data: movieData, error: movieError } = await supabase
+    .from("movies")
+    .upsert(
+      {
+        title: movie.title,
+        year: movie.year,
+        director: movie.director,
+        rating: movie.rating,
+        overview: movie.overview || "",
+        poster_path: movie.poster_path || null,
+        tmdb_id: movie.tmdb_id || null,
+      },
+      { onConflict: "title,year" }
+    )
+    .select()
+    .single();
+
+  if (movieError) {
+    console.error("Error saving movie:", movieError);
+    throw movieError;
+  }
+
+  // Insert the entry into the watchlist table
+  const { error: watchlistError } = await supabase.from("watchlist").insert({
     user_id: userId,
-    ...movie,
-    // Ensure all required fields are present and of the correct type
-    id: movie.id,
-    title: movie.title,
-    year: movie.year,
-    director: movie.director,
-    rating: typeof movie.rating === "number" ? movie.rating : 0,
-    overview: movie.overview,
-    poster_path: movie.poster_path || null,
-  };
+    movie_id: movieData.id,
+    status: "unwatched",
+  });
 
-  const { error } = await supabase
-    .from("watchlist")
-    .upsert(watchlistItem, { onConflict: "user_id, id" });
-
-  if (error) {
-    console.error("Error saving to watchlist:", error);
-    throw error;
+  if (watchlistError) {
+    if (watchlistError.code === "23505") {
+      console.log("Movie already in watchlist");
+      return;
+    }
+    console.error("Error saving to watchlist:", watchlistError);
+    throw watchlistError;
   }
 }
 
 export async function getWatchlist(userId: string): Promise<Movie[]> {
   const { data, error } = await supabase
     .from("watchlist")
-    .select("*")
+    .select("*, movies(*)")
     .eq("user_id", userId);
 
   if (error) {
@@ -46,7 +90,7 @@ export async function getWatchlist(userId: string): Promise<Movie[]> {
     return [];
   }
 
-  return (data as Movie[]) || [];
+  return data.map((item) => item.movies as Movie);
 }
 
 export async function removeFromWatchlist(
@@ -56,8 +100,7 @@ export async function removeFromWatchlist(
   const { error } = await supabase
     .from("watchlist")
     .delete()
-    .eq("user_id", userId)
-    .eq("id", movieId);
+    .match({ user_id: userId, movie_id: movieId });
 
   if (error) {
     console.error("Error removing from watchlist:", error);
@@ -65,18 +108,56 @@ export async function removeFromWatchlist(
   }
 }
 
-export async function getCombinedWatchlist(userId: string): Promise<Movie[]> {
-  const { data, error } = await supabase
+export async function addFriend(
+  userId: string,
+  friendId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("friendships")
+    .insert({ user_id: userId, friend_id: friendId });
+
+  if (error) {
+    console.error("Error adding friend:", error);
+    throw error;
+  }
+}
+
+export async function removeFriend(
+  userId: string,
+  friendId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("friendships")
+    .delete()
+    .match({ user_id: userId, friend_id: friendId });
+
+  if (error) {
+    console.error("Error removing friend:", error);
+    throw error;
+  }
+}
+
+export async function getCombinedWatchlist(
+  userId: string,
+  friendId?: string
+): Promise<Movie[]> {
+  let query = supabase
     .from("watchlist")
-    .select("*")
+    .select("*, movies(*)")
     .eq("user_id", userId);
+
+  if (friendId) {
+    query = query.or(`user_id.eq.${friendId}`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Error fetching combined watchlist:", error);
     return [];
   }
 
-  return (data as Movie[]) || [];
+  return data.map((item) => item.movies as Movie);
 }
 
-// Update other functions similarly, using the correct table names and types
+// ... rest of the file

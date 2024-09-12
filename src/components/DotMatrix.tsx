@@ -1,46 +1,49 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
 interface DotMatrixProps {
-  letter: "D" | "W" | "F" | "C";
   isHovered: boolean;
-  dots?: number[]; // Add this line
+  dots: number[];
 }
 
-const dotPatterns = {
-  D: [
-    1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0,
-  ],
-  W: [
-    1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1,
-  ],
-  F: [
-    1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-  ],
-  C: [
-    1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1,
-  ],
-};
+const movieIcons = [
+  [1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1], // Clapperboard
+  [0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0], // Popcorn
+  [1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1], // Film strip
+];
 
-export function DotMatrix({ letter, isHovered, dots }: DotMatrixProps) {
-  const dotPattern = dots || dotPatterns[letter];
+export function DotMatrix({ isHovered, dots }: DotMatrixProps) {
+  const [currentIcon, setCurrentIcon] = useState(dots);
+
+  useEffect(() => {
+    if (isHovered) {
+      const interval = setInterval(() => {
+        setCurrentIcon(
+          movieIcons[Math.floor(Math.random() * movieIcons.length)]
+        );
+      }, 300);
+      return () => clearInterval(interval);
+    } else {
+      setCurrentIcon(dots);
+    }
+  }, [isHovered, dots]);
 
   return (
-    <svg width="50" height="50" viewBox="0 0 50 50">
-      {dotPattern.map((dot, index) => {
-        const x = (index % 5) * 10 + 5;
-        const y = Math.floor(index / 5) * 10 + 5;
+    <svg width="25" height="25" viewBox="0 0 25 25">
+      {currentIcon.map((dot, index) => {
+        const x = (index % 5) * 5 + 2.5;
+        const y = Math.floor(index / 5) * 5 + 2.5;
         return (
           <motion.circle
             key={index}
             cx={x}
             cy={y}
-            r="4"
+            r="2"
             fill="currentColor"
-            initial={{ scale: 1 }}
+            initial={{ scale: dot ? 1 : 0 }}
             animate={{
-              scale: isHovered ? (dot ? 1 : 0) : 1,
-              opacity: isHovered ? (dot ? 1 : 0.3) : 1,
+              scale: isHovered ? (dot ? 1 : 0) : dot ? 1 : 0,
+              opacity: isHovered ? (dot ? 1 : 0) : dot ? 0.5 : 0,
             }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
           />

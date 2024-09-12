@@ -1,97 +1,109 @@
 "use client";
 
-import { useState } from "react";
-import { useSignIn } from "@clerk/nextjs";
+import { SignIn } from "@clerk/nextjs";
 import { motion } from "framer-motion";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
-import Link from "next/link";
+import { DotMatrix } from "@/components/DotMatrix";
+import { useState } from "react";
+
+const welcomeDots = [
+  1,
+  1,
+  1,
+  1,
+  0,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  0, // C
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  0,
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  0,
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // S
+];
 
 export default function SignInPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const { signIn, setActive } = useSignIn();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const result = await signIn?.create({
-        identifier: email,
-        password,
-      });
-
-      if (result?.status === "complete") {
-        await setActive?.({ session: result.createdSessionId });
-        toast({
-          title: "Success",
-          description: "You have successfully signed in.",
-        });
-      } else {
-        console.error("Sign in failed", result);
-        toast({
-          title: "Error",
-          description: "Sign in failed. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (err) {
-      console.error("Error during sign in:", err);
-      toast({
-        title: "Error",
-        description: "An error occurred during sign in. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md p-8 space-y-8 bg-secondary rounded-lg shadow-lg"
+        className="text-center mb-8"
       >
-        <h2 className="text-3xl font-bold text-center text-foreground">
-          Sign In to CineSync
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <Input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full"
-            />
-          </div>
-          <div>
-            <Input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full"
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Signing In..." : "Sign In"}
-          </Button>
-        </form>
-        <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
-          <Link href="/sign-up" className="text-primary hover:underline">
-            Sign Up
-          </Link>
+        <motion.div
+          className="w-24 h-12 mx-auto mb-4"
+          whileHover={{ scale: 1.1 }}
+          onHoverStart={() => setIsHovered(true)}
+          onHoverEnd={() => setIsHovered(false)}
+        >
+          <DotMatrix isHovered={isHovered} dots={welcomeDots} />
+        </motion.div>
+        <h1 className="text-4xl font-light mb-2">Welcome Back to CineSync</h1>
+        <p className="text-muted-foreground">
+          Sign in to continue your movie discovery journey
         </p>
+      </motion.div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="w-full max-w-md"
+      >
+        <SignIn
+          appearance={{
+            elements: {
+              rootBox: "bg-background shadow-lg rounded-lg p-8",
+              card: "bg-background",
+              headerTitle: "text-2xl font-light text-foreground mb-4",
+              headerSubtitle: "text-muted-foreground mb-6",
+              formButtonPrimary:
+                "bg-primary text-primary-foreground hover:bg-primary/90",
+              formFieldLabel: "text-foreground",
+              formFieldInput:
+                "bg-secondary text-foreground border-input focus:border-primary",
+              footerActionLink: "text-primary hover:text-primary/90",
+            },
+          }}
+        />
       </motion.div>
     </div>
   );

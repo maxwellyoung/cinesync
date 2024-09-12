@@ -18,11 +18,9 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            {children}
-          </ThemeProvider>
-        </body>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <body>{children}</body>
+        </ThemeProvider>
       </html>
     </ClerkProvider>
   );

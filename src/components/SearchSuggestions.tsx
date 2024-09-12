@@ -1,56 +1,39 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { motion } from "framer-motion";
-import { supabase } from "@/lib/supabaseClient";
 
 interface SearchSuggestionsProps {
-  query: string;
   onSuggestionClick: (suggestion: string) => void;
 }
 
+const suggestions = [
+  "Heartwarming indie drama",
+  "Sci-fi thriller from the 90s",
+  "Quirky European comedy",
+  "Thought-provoking documentary",
+  "Classic film noir",
+  "Animated fantasy for adults",
+  "Psychological horror",
+  "Underrated 80s action movie",
+  "Romantic period piece",
+  "Mind-bending time travel story",
+];
+
 export function SearchSuggestions({
-  query,
   onSuggestionClick,
 }: SearchSuggestionsProps) {
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-
-  useEffect(() => {
-    const fetchSuggestions = async (query: string) => {
-      const { data, error } = await supabase
-        .from("movies")
-        .select("title")
-        .ilike("title", `%${query}%`)
-        .limit(5);
-
-      if (error) {
-        console.error("Error fetching suggestions:", error);
-        return;
-      }
-
-      if (data && Array.isArray(data)) {
-        setSuggestions(data.map((item) => item.title || "").filter(Boolean));
-      }
-    };
-
-    fetchSuggestions(query);
-  }, [query]);
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="absolute z-10 w-full bg-secondary rounded-md shadow-lg mt-1"
-    >
+    <div className="flex flex-wrap gap-2 mt-2">
       {suggestions.map((suggestion, index) => (
-        <motion.div
+        <motion.button
           key={index}
-          className="px-4 py-2 cursor-pointer hover:bg-primary hover:text-primary-foreground"
+          className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded-full hover:bg-primary hover:text-primary-foreground transition-colors duration-200"
           whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => onSuggestionClick(suggestion)}
         >
           {suggestion}
-        </motion.div>
+        </motion.button>
       ))}
-    </motion.div>
+    </div>
   );
 }

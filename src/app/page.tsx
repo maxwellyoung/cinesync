@@ -1,7 +1,7 @@
 import { CineSync } from "@/components/cine-sync";
 import { auth } from "@clerk/nextjs/server";
 import { createServerSupabaseClient } from "@/lib/supabaseClient";
-import { Movie } from "@/lib/types";
+import { Movie } from "@/lib/api";
 import { Database } from "@/lib/database.types";
 
 type WatchlistItem = Database["public"]["Tables"]["watchlist"]["Row"];
@@ -12,7 +12,7 @@ export default async function Home() {
 
   const { data: watchlist, error } = await supabase
     .from("watchlist")
-    .select("*")
+    .select("*, movies(*)")
     .eq("user_id", userId || "");
 
   if (error) {
@@ -21,14 +21,15 @@ export default async function Home() {
 
   // Map the Supabase data to the Movie type
   const typedWatchlist: Movie[] = watchlist
-    ? (watchlist as WatchlistItem[]).map((item) => ({
-        id: item.id,
-        title: item.title,
-        year: item.year,
-        director: item.director,
-        rating: item.rating,
-        overview: item.overview,
-        poster_path: item.poster_path,
+    ? (watchlist as (WatchlistItem & { movies: Movie })[]).map((item) => ({
+        id: item.movies.id,
+        title: item.movies.title,
+        year: item.movies.year,
+        director: item.movies.director,
+        rating: item.movies.rating,
+        overview: item.movies.overview,
+        poster_path: item.movies.poster_path,
+        tmdb_id: item.movies.tmdb_id,
       }))
     : [];
 

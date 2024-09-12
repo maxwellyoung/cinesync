@@ -8,7 +8,56 @@ interface LogoProps {
 }
 
 const logoDots = [
-  1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0,
+  1,
+  1,
+  1,
+  1,
+  0,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  0, // C
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  0,
+  1,
+  0,
+  0,
+  0,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // S
 ];
 
 export const Logo: React.FC<LogoProps> = ({ onAboutClick, onTitleClick }) => {
@@ -17,14 +66,14 @@ export const Logo: React.FC<LogoProps> = ({ onAboutClick, onTitleClick }) => {
   return (
     <div className="flex items-center space-x-2">
       <motion.div
-        className="w-8 h-8 bg-primary rounded-full cursor-pointer overflow-hidden flex items-center justify-center"
+        className="w-12 h-6 cursor-pointer flex items-center justify-center"
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={onAboutClick}
         onHoverStart={() => setIsHovered(true)}
         onHoverEnd={() => setIsHovered(false)}
       >
-        <DotMatrix letter="C" isHovered={isHovered} dots={logoDots} />
+        <DotMatrix isHovered={isHovered} dots={logoDots} />
       </motion.div>
       <motion.h1
         className="text-2xl font-light cursor-pointer"

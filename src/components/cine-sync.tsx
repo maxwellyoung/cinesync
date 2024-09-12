@@ -2,25 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Sparkles,
-  Star,
-  Clapperboard,
-  BookmarkPlus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { generateMovie, Movie } from "@/lib/api";
-import Image from "next/image";
 import { DotMatrix } from "@/components/DotMatrix";
-import { supabase } from "@/lib/supabaseClient";
 import { FriendManager } from "@/components/FriendManager";
-import { useUser } from "@clerk/nextjs";
+import { useUser, SignUpButton } from "@clerk/nextjs";
 import { Topbar } from "@/components/Topbar";
-import { getWatchlist, saveToWatchlist, removeFromWatchlist } from "@/lib/db";
+import { saveToWatchlist } from "@/lib/db";
+import { getWatchlist, removeFromWatchlist } from "@/lib/api";
+import { DiscoverSearch } from "@/components/DiscoverSearch";
+import { Watchlist } from "@/components/Watchlist";
+import { getFriends } from "@/lib/api";
 
 interface MenuCardProps {
   label: string;
@@ -31,22 +25,20 @@ const MenuCard: React.FC<MenuCardProps> = ({ label, onClick }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   const iconDots = {
-    D: [
+    Discover: [
       1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0,
     ],
-    W: [
+    Watchlist: [
       1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1,
     ],
-    F: [
+    Friends: [
       1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0,
     ],
   };
 
   return (
     <motion.div
-      className={`bg-secondary rounded-lg p-4 w-full h-full flex flex-col items-start justify-between overflow-hidden relative shadow-inner cursor-pointer ${
-        label === "Discover" ? "aspect-[2/1]" : "aspect-square"
-      }`}
+      className="bg-secondary rounded-lg p-4 w-full h-full flex flex-col items-start justify-between overflow-hidden relative shadow-inner cursor-pointer"
       whileHover={{ scale: 1.02, boxShadow: "0 0 10px rgba(255,255,255,0.2)" }}
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.2 }}
@@ -69,9 +61,8 @@ const MenuCard: React.FC<MenuCardProps> = ({ label, onClick }) => {
         transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
       >
         <DotMatrix
-          letter={label[0] as "D" | "W" | "F"}
           isHovered={isHovered}
-          dots={iconDots[label[0] as keyof typeof iconDots]}
+          dots={iconDots[label as keyof typeof iconDots]}
         />
       </motion.div>
       <motion.div
@@ -120,7 +111,6 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         </h3>
         <div className="w-12 h-12 sm:w-16 sm:h-16 mb-3 sm:mb-4">
           <DotMatrix
-            letter="D"
             isHovered={false}
             dots={[
               1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1,
@@ -145,7 +135,6 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         </h3>
         <div className="w-12 h-12 sm:w-16 sm:h-16 mb-3 sm:mb-4">
           <DotMatrix
-            letter="W"
             isHovered={false}
             dots={[
               1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0,
@@ -169,7 +158,6 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         </h3>
         <div className="w-12 h-12 sm:w-16 sm:h-16 mb-3 sm:mb-4">
           <DotMatrix
-            letter="F"
             isHovered={false}
             dots={[
               1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0,
@@ -193,7 +181,6 @@ const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => (
         </h3>
         <div className="w-12 h-12 sm:w-16 sm:h-16 mb-3 sm:mb-4">
           <DotMatrix
-            letter="C"
             isHovered={false}
             dots={[
               0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1,
@@ -257,43 +244,41 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
   >("menu");
   const [movie, setMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [prompt, setPrompt] = useState<string>("");
   const [watchlist, setWatchlist] = useState<Movie[]>(initialWatchlist);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]);
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const [suggestedMovies, setSuggestedMovies] = useState<Movie[]>([]);
+  const [friends, setFriends] = useState<string[]>([]);
+  const [selectedFriend, setSelectedFriend] = useState<string | null>(null);
+  const [includeWatchlist, setIncludeWatchlist] = useState<boolean>(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isMounted && user) {
+      getWatchlist(user.id).then(setWatchlist);
+    }
+  }, [user, isMounted]);
+
+  useEffect(() => {
+    if (isMounted && user) {
+      const fetchFriends = async () => {
+        const fetchedFriends = await getFriends(user.id);
+        setFriends(fetchedFriends);
+      };
+      fetchFriends();
+    }
+  }, [user, isMounted]);
 
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.toggle("dark", isDarkMode);
   }, [isDarkMode]);
-
-  useEffect(() => {
-    fetchPromptSuggestions();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      getWatchlist(user.id).then(setWatchlist);
-    }
-  }, [user]);
-
-  const fetchPromptSuggestions = async () => {
-    const { data, error } = await supabase
-      .from("prompt_suggestions")
-      .select("suggestion");
-
-    if (error) {
-      console.error("Error fetching prompt suggestions:", error);
-      return;
-    }
-
-    if (data && Array.isArray(data)) {
-      setPromptSuggestions(data.map((item) => item.suggestion));
-    }
-  };
 
   const handleTitleClick = () => {
     setView("menu");
@@ -309,13 +294,18 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
     try {
       console.log("Attempting to generate movie...");
       const generatedMovie = await generateMovie(
-        searchQuery,
+        prompt,
         user?.id || "",
-        suggestedMovies
+        suggestedMovies,
+        selectedFriend,
+        includeWatchlist
       );
       if (generatedMovie) {
         setMovie(generatedMovie);
-        setSuggestedMovies([...suggestedMovies, generatedMovie]);
+        setSuggestedMovies((prevSuggestedMovies) => [
+          ...prevSuggestedMovies,
+          generatedMovie,
+        ]);
       } else {
         setError(
           "I couldn't find a suitable movie based on that description. Could you please provide more details or try a different prompt?"
@@ -344,7 +334,15 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
     }
 
     try {
-      await saveToWatchlist(user.id, movie);
+      await saveToWatchlist(user.id, {
+        title: movie.title,
+        year: movie.year || 0,
+        director: movie.director,
+        rating: movie.rating || 0,
+        overview: movie.overview || "",
+        poster_path: movie.poster_path || null,
+        tmdb_id: movie.tmdb_id || null,
+      });
       setWatchlist([...watchlist, movie]);
       toast({
         title: "Success",
@@ -354,7 +352,7 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
       console.error("Error adding movie to watchlist:", error);
       toast({
         title: "Error",
-        description: "Failed to add movie to watchlist",
+        description: "Failed to add movie to watchlist. Please try again.",
         variant: "destructive",
       });
     }
@@ -388,17 +386,38 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
     }
   };
 
-  const handleInputKeyPress = (
-    event: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (event.key === "Enter") {
-      handleGenerateMovie();
-    }
+  const isInWatchlist = (movie: Movie) => {
+    return watchlist.some(
+      (m) => m.title === movie.title && m.year === movie.year
+    );
   };
+
+  const handleDiscoverClick = () => {
+    setView("discover");
+  };
+
+  if (!isMounted) {
+    return null;
+  }
+
+  if (!isLoaded) {
+    return <div>Loading...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background">
+        <h1 className="text-4xl font-bold mb-8">Welcome to CineSync</h1>
+        <SignUpButton mode="modal">
+          <Button size="lg">Sign Up</Button>
+        </SignUpButton>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <div className="p-4">
+      <div className="p-4 flex flex-col flex-grow">
         <Topbar
           isDarkMode={isDarkMode}
           setIsDarkMode={setIsDarkMode}
@@ -414,22 +433,27 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="flex-grow grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4"
+              className="flex-grow flex items-center justify-center"
             >
-              <div className="col-span-1 sm:col-span-2 lg:col-span-2 row-span-2">
-                <MenuCard
-                  label="Discover"
-                  onClick={() => setView("discover")}
-                />
-              </div>
-              <div className="col-span-1">
-                <MenuCard
-                  label="Watchlist"
-                  onClick={() => setView("watchlist")}
-                />
-              </div>
-              <div className="col-span-1">
-                <MenuCard label="Friends" onClick={() => setView("friends")} />
+              <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 h-[calc(100vh-200px)]">
+                <div className="col-span-1 sm:col-span-2 lg:col-span-2 row-span-1 lg:row-span-2 h-full">
+                  <MenuCard
+                    label="Discover"
+                    onClick={() => setView("discover")}
+                  />
+                </div>
+                <div className="col-span-1 h-full sm:h-1/2 lg:h-full">
+                  <MenuCard
+                    label="Watchlist"
+                    onClick={() => setView("watchlist")}
+                  />
+                </div>
+                <div className="col-span-1 h-full sm:h-1/2 lg:h-full">
+                  <MenuCard
+                    label="Friends"
+                    onClick={() => setView("friends")}
+                  />
+                </div>
               </div>
             </motion.div>
           )}
@@ -443,211 +467,30 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
               transition={{ duration: 0.3 }}
               className="flex-grow flex flex-col justify-center items-center space-y-8"
             >
-              <motion.h2
-                className="text-4xl font-light mb-4"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                Discover Your Next Movie
-              </motion.h2>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3 }}
-                className="w-full max-w-md relative"
-              >
-                <Input
-                  placeholder="Describe your perfect movie..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={handleInputKeyPress}
-                  className="text-xl bg-secondary shadow-inner text-foreground placeholder-muted-foreground"
-                />
-                <AnimatePresence>
-                  {promptSuggestions.length > 0 && searchQuery === "" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute z-10 w-full bg-secondary rounded-md shadow-lg mt-1"
-                    >
-                      {promptSuggestions.map((suggestion, index) => (
-                        <motion.div
-                          key={index}
-                          className="px-4 py-2 cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                          whileHover={{ scale: 1.05 }}
-                          onClick={() => setSearchQuery(suggestion)}
-                        >
-                          {suggestion}
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 }}
-              >
-                <Button
-                  onClick={handleGenerateMovie}
-                  disabled={loading || !searchQuery}
-                  className="text-xl py-6 px-8 bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-shadow duration-300"
-                >
-                  {loading ? "Discovering..." : "Find Movie"}
-                  <Sparkles className="ml-2 h-5 w-5" />
-                </Button>
-              </motion.div>
-
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-red-500 mt-4 p-4 bg-red-100 rounded-md"
-                >
-                  <p>{error}</p>
-                  <p className="mt-2 text-sm">
-                    Try adding more details like genre, time period, or specific
-                    themes you&apos;re interested in.
-                  </p>
-                </motion.div>
-              )}
-
-              {movie && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-center space-y-4 max-w-2xl"
-                >
-                  <h3 className="text-3xl font-light">{movie.title}</h3>
-                  {movie.poster_path && (
-                    <Image
-                      src={movie.poster_path}
-                      alt={movie.title}
-                      width={300}
-                      height={450}
-                      className="mx-auto rounded-lg shadow-lg"
-                    />
-                  )}
-                  <div className="flex items-center justify-center space-x-4 text-xl">
-                    <Clapperboard className="h-6 w-6" />
-                    <span>{movie.year}</span>
-                    <span>{movie.director}</span>
-                  </div>
-                  <div className="flex items-center justify-center text-xl">
-                    <Star className="h-6 w-5 text-yellow-400 mr-2" />
-                    <span className="text-2xl">
-                      {typeof movie.rating === "number"
-                        ? movie.rating.toFixed(1)
-                        : movie.rating}
-                    </span>
-                  </div>
-                  <p className="text-lg text-muted-foreground">
-                    {movie.overview}
-                  </p>
-                  <div className="flex justify-center space-x-4">
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <Button
-                        variant="outline"
-                        className="text-xl py-4 px-6 bg-secondary text-secondary-foreground shadow-inner"
-                        onClick={() => addToWatchlist(movie)}
-                      >
-                        <BookmarkPlus className="mr-2 h-5 w-5" />
-                        Add to Watchlist
-                      </Button>
-                    </motion.div>
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <Button
-                        variant="outline"
-                        className="text-xl py-4 px-6 bg-secondary text-secondary-foreground shadow-inner"
-                        onClick={handleGenerateMovie}
-                      >
-                        Show Me Another
-                      </Button>
-                    </motion.div>
-                  </div>
-                </motion.div>
-              )}
+              <DiscoverSearch
+                prompt={prompt}
+                setPrompt={setPrompt}
+                loading={loading}
+                handleGenerateMovie={handleGenerateMovie}
+                error={error}
+                movie={movie}
+                addToWatchlist={addToWatchlist}
+                isInWatchlist={movie ? isInWatchlist(movie) : false}
+                friends={friends}
+                selectedFriend={selectedFriend}
+                setSelectedFriend={setSelectedFriend}
+                includeWatchlist={includeWatchlist}
+                setIncludeWatchlist={setIncludeWatchlist}
+              />
             </motion.div>
           )}
 
           {view === "watchlist" && (
-            <motion.div
-              key="watchlist"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="flex-grow flex flex-col items-center space-y-8"
-            >
-              <motion.h2
-                className="text-4xl font-light mb-4"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                Your Watchlist
-              </motion.h2>
-              {watchlist.length === 0 ? (
-                <motion.p
-                  className="text-xl text-muted-foreground"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  Your watchlist is empty. Discover some movies!
-                </motion.p>
-              ) : (
-                <motion.div
-                  className="w-full max-w-4xl space-y-4"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  {watchlist.map((movie, index) => (
-                    <motion.div
-                      key={movie.id}
-                      className="bg-secondary p-6 rounded-lg flex justify-between items-center shadow-md hover:shadow-lg transition-shadow duration-300"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      transition={{ duration: 0.2, delay: index * 0.1 }}
-                    >
-                      <div>
-                        <h3 className="font-medium text-xl text-secondary-foreground">
-                          {movie.title}
-                        </h3>
-                        <p className="text-lg text-muted-foreground">
-                          {movie.year}
-                        </p>
-                      </div>
-                      <motion.div
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveFromWatchlist(movie.id)}
-                          className="text-secondary-foreground hover:text-primary transition-colors duration-300"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </Button>
-                      </motion.div>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </motion.div>
+            <Watchlist
+              watchlist={watchlist}
+              handleRemoveFromWatchlist={handleRemoveFromWatchlist}
+              onDiscoverClick={handleDiscoverClick}
+            />
           )}
 
           {view === "friends" && (
