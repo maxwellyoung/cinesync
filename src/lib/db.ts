@@ -2,9 +2,9 @@ import { supabase } from "./supabaseClient";
 import { Database } from "./database.types";
 import { v4 as uuidv4 } from "uuid";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Movie } from "./api";
+import { Movie as ApiMovie } from "./api";
 
-type Movie = Database["public"]["Tables"]["movies"]["Row"];
+type DbMovie = Database["public"]["Tables"]["movies"]["Row"];
 
 export function generateUUID(userId: string): string {
   return uuidv4({ random: Buffer.from(userId) });
@@ -12,69 +12,21 @@ export function generateUUID(userId: string): string {
 
 export async function saveToWatchlist(
   userId: string,
-  movie: Omit<Movie, "id">
+  movie: ApiMovie
 ): Promise<void> {
-  const supabase = createClientComponentClient();
-  const supabaseUserId = generateUUID(userId);
+  const supabase = createClientComponentClient<Database>();
+  const { error } = await supabase.from("watchlist").insert({
+    user_id: userId,
+    movie_id: movie.id,
+  });
 
-  try {
-    // First, ensure the user exists in the users table
-    const { error: userError } = await supabase
-      .from("users")
-      .upsert({
-        id: supabaseUserId,
-        clerk_id: userId,
-        username: `user_${supabaseUserId.slice(0, 8)}`, // Generate a temporary username
-        email: `user_${supabaseUserId.slice(0, 8)}@example.com`, // Generate a temporary email
-      })
-      .select()
-      .single();
-
-    if (userError) {
-      throw new Error(`Error ensuring user exists: ${userError.message}`);
-    }
-
-    // Then, insert or select the movie from the movies table
-    const { data: movieData, error: movieError } = await supabase
-      .from("movies")
-      .upsert({
-        title: movie.title,
-        year: movie.year,
-        director: movie.director,
-        rating: movie.rating,
-        overview: movie.overview || "",
-        poster_path: movie.poster_path || null,
-        tmdb_id: movie.tmdb_id || null,
-      })
-      .select()
-      .single();
-
-    if (movieError) {
-      throw new Error(`Error saving movie: ${movieError.message}`);
-    }
-
-    // Finally, add the entry to the watchlist table
-    const { error: watchlistError } = await supabase.from("watchlist").upsert(
-      {
-        user_id: supabaseUserId,
-        movie_id: movieData.id,
-        status: "to_watch", // Add a default status
-      },
-      {
-        onConflict: "user_id,movie_id",
-      }
-    );
-
-    if (watchlistError) {
-      throw new Error(`Error saving to watchlist: ${watchlistError.message}`);
-    }
-  } catch (error) {
-    console.error("Error in saveToWatchlist:", error);
+  if (error) {
+    console.error("Error saving to watchlist:", error);
     throw error;
   }
 }
 
-export async function getWatchlist(userId: string): Promise<Movie[]> {
+export async function getWatchlist(userId: string): Promise<DbMovie[]> {
   const supabaseUserId = generateUUID(userId);
   const { data, error } = await supabase
     .from("watchlist")
@@ -86,7 +38,7 @@ export async function getWatchlist(userId: string): Promise<Movie[]> {
     return [];
   }
 
-  return data.map((item) => item.movies as Movie);
+  return data.map((item) => item.movies as DbMovie);
 }
 
 export async function removeFromWatchlist(
@@ -136,7 +88,7 @@ export async function removeFriend(
 export async function getCombinedWatchlist(
   userId: string,
   friendId?: string
-): Promise<Movie[]> {
+): Promise<DbMovie[]> {
   let query = supabase
     .from("watchlist")
     .select("*, movies(*)")
@@ -153,7 +105,7 @@ export async function getCombinedWatchlist(
     return [];
   }
 
-  return data.map((item) => item.movies as Movie);
+  return data.map((item) => item.movies as DbMovie);
 }
 
 // ... rest of the file
