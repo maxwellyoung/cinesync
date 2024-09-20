@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CineSync
+
+CineSync is an AI-powered movie discovery and recommendation platform built with Next.js, React, and TypeScript. It helps users find their next favorite movie based on their preferences and mood.
+
+## Features
+
+- **AI-Powered Movie Discovery**: Get personalized movie recommendations using advanced AI algorithms.
+- **Watchlist Management**: Keep track of movies you want to watch.
+- **Friend Connections**: Share movie recommendations with friends and discover together.
+- **Responsive Design**: Fully responsive UI built with Tailwind CSS and Shadcn UI components.
+- **Dark Mode**: Toggle between light and dark themes for comfortable viewing.
+
+## Tech Stack
+
+- **Frontend**: Next.js, React, TypeScript
+- **Styling**: Tailwind CSS, Shadcn UI
+- **Animation**: Framer Motion
+- **Authentication**: Clerk
+- **State Management**: React Hooks
+- **API Integration**: Custom API for movie data and recommendations
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+   ```
+   git clone https://github.com/your-username/cine-sync.git
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+   ```
+   cd cine-sync
+   npm install
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Set up environment variables:
+   Create a `.env.local` file in the root directory and add the necessary environment variables (e.g., API keys, Clerk credentials).
 
-## Learn More
+4. Run the development server:
 
-To learn more about Next.js, take a look at the following resources:
+   ```
+   npm run dev
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
+- `src/components`: React components
+- `src/lib`: Utility functions and API calls
+- `src/hooks`: Custom React hooks
+- `src/pages`: Next.js pages (if using pages directory)
+- `src/app`: Next.js app directory (for App Router)
+- `public`: Static assets
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Contributing
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License.

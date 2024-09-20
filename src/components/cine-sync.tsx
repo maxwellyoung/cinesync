@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
+import { Button } from "../components/ui/button";
 import { X } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { generateMovie, Movie } from "@/lib/api";
-import { DotMatrix } from "@/components/DotMatrix";
-import { FriendManager } from "@/components/FriendManager";
+import { toast } from "../hooks/use-toast";
+import { generateMovie, Movie } from "../lib/api";
+import { DotMatrix } from "../components/DotMatrix";
+import { FriendManager } from "../components/FriendManager";
 import { useUser, SignUpButton } from "@clerk/nextjs";
-import { Topbar } from "@/components/Topbar";
-import { saveToWatchlist } from "@/lib/db";
-import { getWatchlist, removeFromWatchlist } from "@/lib/api";
-import { DiscoverSearch } from "@/components/DiscoverSearch";
-import { Watchlist } from "@/components/Watchlist";
-import { getFriends } from "@/lib/api";
+import { Topbar } from "../components/Topbar";
+import { saveToWatchlist } from "../lib/db";
+import { getWatchlist, removeFromWatchlist } from "../lib/api";
+import { DiscoverSearch } from "../components/DiscoverSearch";
+import { Watchlist } from "../components/Watchlist";
+import { getFriends } from "../lib/api";
+import { useTheme } from "next-themes";
 
 interface MenuCardProps {
   label: string;
@@ -38,7 +39,7 @@ const MenuCard: React.FC<MenuCardProps> = ({ label, onClick }) => {
 
   return (
     <motion.div
-      className="bg-secondary rounded-lg p-4 w-full h-full flex flex-col items-start justify-between overflow-hidden relative shadow-inner cursor-pointer"
+      className="bg-secondary rounded-lg p-6 w-full h-full flex flex-col items-start justify-between overflow-hidden relative shadow-inner cursor-pointer"
       whileHover={{ scale: 1.02, boxShadow: "0 0 10px rgba(255,255,255,0.2)" }}
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.2 }}
@@ -47,7 +48,7 @@ const MenuCard: React.FC<MenuCardProps> = ({ label, onClick }) => {
       onHoverEnd={() => setIsHovered(false)}
     >
       <motion.span
-        className="text-2xl font-light z-10"
+        className="text-3xl font-light z-10"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}
@@ -55,9 +56,9 @@ const MenuCard: React.FC<MenuCardProps> = ({ label, onClick }) => {
         {label}
       </motion.span>
       <motion.div
-        className="self-end z-10"
+        className="self-end z-10 transform scale-150"
         initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
+        animate={{ scale: 1.5 }}
         transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
       >
         <DotMatrix
@@ -238,7 +239,8 @@ interface CineSyncProps {
 }
 
 export function CineSync({ initialWatchlist }: CineSyncProps) {
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
+  const { theme, setTheme } = useTheme();
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(theme === "dark");
   const [view, setView] = useState<
     "menu" | "discover" | "watchlist" | "friends"
   >("menu");
@@ -276,9 +278,12 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
   }, [user, isMounted]);
 
   useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.toggle("dark", isDarkMode);
-  }, [isDarkMode]);
+    setTheme(isDarkMode ? "dark" : "light");
+  }, [isDarkMode, setTheme]);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode((prev) => !prev);
+  };
 
   const handleTitleClick = () => {
     setView("menu");
@@ -292,25 +297,32 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
     setLoading(true);
     setError(null);
     try {
-      console.log("Attempting to generate movie...");
-      const generatedMovie = await generateMovie(
-        prompt,
-        user?.id || "",
-        suggestedMovies,
-        selectedFriend,
-        includeWatchlist
-      );
-      if (generatedMovie) {
-        setMovie(generatedMovie);
-        setSuggestedMovies((prevSuggestedMovies) => [
-          ...prevSuggestedMovies,
-          generatedMovie,
-        ]);
-      } else {
-        setError(
-          "I couldn't find a suitable movie based on that description. Could you please provide more details or try a different prompt?"
+      const response = await fetch("/api/generate-movie", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt,
+          previousSuggestions: suggestedMovies.map((m) => m.title),
+          friendId: selectedFriend,
+          includeWatchlist,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Failed to generate movie suggestion"
         );
       }
+
+      const generatedMovie = await response.json();
+      setMovie(generatedMovie);
+      setSuggestedMovies((prevSuggestedMovies) => [
+        ...prevSuggestedMovies,
+        generatedMovie,
+      ]);
     } catch (err) {
       console.error("Error in handleGenerateMovie:", err);
       if (err instanceof Error) {
@@ -324,35 +336,33 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
   };
 
   const addToWatchlist = async (movie: Movie) => {
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to add movies to your watchlist",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
-      await saveToWatchlist(user.id, {
-        title: movie.title,
-        year: movie.year || 0,
-        director: movie.director,
-        rating: movie.rating || 0,
-        overview: movie.overview || "",
-        poster_path: movie.poster_path || null,
-        tmdb_id: movie.tmdb_id || null,
+      const response = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(movie),
       });
-      setWatchlist([...watchlist, movie]);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to add to watchlist");
+      }
+
+      setWatchlist((prev) => [...prev, movie]);
       toast({
-        title: "Success",
-        description: "Movie added to watchlist",
+        title: "Added to Watchlist",
+        description: `${movie.title} has been added to your watchlist.`,
       });
     } catch (error) {
-      console.error("Error adding movie to watchlist:", error);
+      console.error("Error adding to watchlist:", error);
       toast({
         title: "Error",
-        description: "Failed to add movie to watchlist. Please try again.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to add movie to watchlist. Please try again.",
         variant: "destructive",
       });
     }
@@ -417,14 +427,13 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <div className="p-4 flex flex-col flex-grow">
-        <Topbar
-          isDarkMode={isDarkMode}
-          setIsDarkMode={setIsDarkMode}
-          onAboutClick={handleAboutClick}
-          onTitleClick={handleTitleClick}
-        />
-
+      <Topbar
+        isDarkMode={isDarkMode}
+        setIsDarkMode={toggleDarkMode}
+        onAboutClick={handleAboutClick}
+        onTitleClick={handleTitleClick}
+      />
+      <div className="flex-grow flex flex-col mt-20 sm:mt-24 pb-8">
         <AnimatePresence mode="wait">
           {view === "menu" && (
             <motion.div
@@ -433,22 +442,22 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="flex-grow flex items-center justify-center"
+              className="flex-grow flex items-center justify-center p-4"
             >
-              <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 h-[calc(100vh-200px)]">
+              <div className="w-full max-w-7xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 h-[calc(100vh-12rem)]">
                 <div className="col-span-1 sm:col-span-2 lg:col-span-2 row-span-1 lg:row-span-2 h-full">
                   <MenuCard
                     label="Discover"
                     onClick={() => setView("discover")}
                   />
                 </div>
-                <div className="col-span-1 h-full sm:h-1/2 lg:h-full">
+                <div className="col-span-1 h-full">
                   <MenuCard
                     label="Watchlist"
                     onClick={() => setView("watchlist")}
                   />
                 </div>
-                <div className="col-span-1 h-full sm:h-1/2 lg:h-full">
+                <div className="col-span-1 h-full">
                   <MenuCard
                     label="Friends"
                     onClick={() => setView("friends")}
@@ -465,7 +474,7 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="flex-grow flex flex-col justify-center items-center space-y-8"
+              className="flex-grow flex flex-col justify-start items-center space-y-8 p-4"
             >
               <DiscoverSearch
                 prompt={prompt}

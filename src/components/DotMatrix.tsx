@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
 interface DotMatrixProps {
-  isHovered: boolean;
   dots: number[];
+  isHovered: boolean;
 }
 
 const movieIcons = [
@@ -12,7 +12,7 @@ const movieIcons = [
   [1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1], // Film strip
 ];
 
-export function DotMatrix({ isHovered, dots }: DotMatrixProps) {
+export function DotMatrix({ dots, isHovered }: DotMatrixProps) {
   const [currentIcon, setCurrentIcon] = useState(dots);
 
   useEffect(() => {

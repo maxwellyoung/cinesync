@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { Database } from "./database.types";
+import { Movie } from "./types";
 
 const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
@@ -28,114 +29,66 @@ async function fetchMoviePoster(
   return null;
 }
 
-export async function generateMovie(
-  prompt: string,
-  userId: string,
-  suggestedMovies: Movie[] = [],
-  selectedFriend: string | null,
-  includeWatchlist: boolean
-): Promise<Movie | null> {
-  try {
-    console.log("Sending request to generate movie...");
-    const response = await fetch("/api/generate-movie", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt,
-        userId,
-        suggestedMovies,
-        selectedFriend,
-        includeWatchlist,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(
-        errorData.error || `HTTP error! status: ${response.status}`
-      );
-    }
-
-    const movieData = await response.json();
-    console.log("Received movie data:", movieData);
-
-    if (
-      !movieData.title ||
-      !movieData.year ||
-      !movieData.director ||
-      !movieData.rating ||
-      !movieData.overview
-    ) {
-      throw new Error("Invalid movie data received");
-    }
-
-    const movie: Movie = {
-      id: Math.floor(Math.random() * 1000000),
-      title: movieData.title,
-      year: parseInt(movieData.year, 10),
-      director: movieData.director,
-      rating: parseFloat(movieData.rating) || 0,
-      overview: movieData.overview,
-      poster_path: null,
-      tmdb_id: null,
-    };
-
-    // Check if the movie is already in suggestedMovies
-    const isDuplicate = suggestedMovies.some(
-      (suggestedMovie) =>
-        suggestedMovie.title === movie.title &&
-        suggestedMovie.year === movie.year
-    );
-
-    if (isDuplicate) {
-      console.log("Duplicate movie generated, retrying...");
-      return generateMovie(
-        prompt,
-        userId,
-        suggestedMovies,
-        selectedFriend,
-        includeWatchlist
-      );
-    }
-
-    // Fetch movie poster
-    movie.poster_path = await fetchMoviePoster(movie.title, movie.year);
-
-    console.log("Generated movie:", movie);
-    return movie;
-  } catch (error: unknown) {
-    console.error("Error in generateMovie function:", error);
-    if (error instanceof Error) {
-      throw new Error(`Failed to generate movie: ${error.message}`);
-    } else {
-      throw new Error("An unknown error occurred while generating the movie");
-    }
-  }
-}
-
 export async function getWatchlist(userId: string): Promise<Movie[]> {
-  const { data, error } = await supabase
-    .from("watchlist")
-    .select("*, movies(*)")
-    .eq("user_id", userId);
+  // First, get the UUID for the user
+  const { data: userData, error: userError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("clerk_id", userId)
+    .single();
 
-  if (error) {
-    console.error("Error fetching watchlist:", error);
+  if (userError) {
+    console.error("Error fetching user:", userError);
+    throw userError;
+  }
+
+  if (!userData) {
+    console.error("User not found");
     return [];
   }
 
-  return data.map((item) => item.movies as Movie);
+  // Now use the UUID to fetch the watchlist
+  const { data, error } = await supabase
+    .from("watchlist")
+    .select("movies(*)")
+    .eq("user_id", userData.id);
+
+  if (error) {
+    console.error("Error fetching watchlist:", error);
+    throw error;
+  }
+
+  return (data?.map((item) => item.movies) as Movie[]) || [];
+}
+
+async function getUserUUID(clerkUserId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("users")
+    .select("id")
+    .eq("clerk_id", clerkUserId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching user UUID:", error);
+    throw error;
+  }
+
+  if (!data) {
+    console.error("User not found");
+    throw new Error("User not found");
+  }
+
+  return data.id;
 }
 
 export async function addToWatchlist(
   userId: string,
   movieId: number
 ): Promise<void> {
+  const userUUID = await getUserUUID(userId);
   const { error } = await supabase
-    .from("watchlists")
-    .insert({ user_id: userId, movie_id: movieId });
+    .from("watchlist")
+    .insert({ user_id: userUUID, movie_id: movieId });
 
   if (error) {
     console.error("Error adding to watchlist:", error);
@@ -147,10 +100,11 @@ export async function removeFromWatchlist(
   userId: string,
   movieId: number
 ): Promise<void> {
+  const userUUID = await getUserUUID(userId);
   const { error } = await supabase
     .from("watchlist")
     .delete()
-    .match({ user_id: userId, movie_id: movieId });
+    .match({ user_id: userUUID, movie_id: movieId });
 
   if (error) {
     console.error("Error removing from watchlist:", error);

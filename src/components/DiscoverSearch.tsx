@@ -1,22 +1,30 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
 import {
   Sparkles,
   Star,
   Clapperboard,
   BookmarkPlus,
-  Image as ImageIcon,
   ExternalLink,
   Check,
+  Search,
 } from "lucide-react";
-import Image from "next/image";
-import { SearchSuggestions } from "@/components/SearchSuggestions";
+import { SearchSuggestions } from "./SearchSuggestions";
 import { Movie } from "@/lib/api";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Switch } from "./ui/switch";
+import { Label } from "./ui/label";
+import { useState } from "react";
+import { MoviePosterModal } from "./MoviePosterModal";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface DiscoverSearchProps {
   prompt: string;
@@ -49,6 +57,8 @@ export function DiscoverSearch({
   includeWatchlist,
   setIncludeWatchlist,
 }: DiscoverSearchProps) {
+  const [isPosterModalOpen, setIsPosterModalOpen] = useState(false);
+
   const handleInputKeyPress = (
     event: React.KeyboardEvent<HTMLInputElement>
   ) => {
@@ -63,39 +73,54 @@ export function DiscoverSearch({
   };
 
   return (
-    <div className="space-y-8 w-full max-w-4xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto space-y-8 p-4">
       <motion.h2
         className="text-4xl font-light text-center mb-8"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
-        Discover Movies
+        Discover Your Next Favorite Movie
       </motion.h2>
-      <SearchSection
-        prompt={prompt}
-        setPrompt={setPrompt}
-        loading={loading}
-        handleGenerateMovie={handleGenerateMovie}
-        handleInputKeyPress={handleInputKeyPress}
-        handleSuggestionClick={handleSuggestionClick}
-        friends={friends}
-        selectedFriend={selectedFriend}
-        setSelectedFriend={setSelectedFriend}
-        includeWatchlist={includeWatchlist}
-        setIncludeWatchlist={setIncludeWatchlist}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-1 space-y-6">
+          <SearchSection
+            prompt={prompt}
+            setPrompt={setPrompt}
+            loading={loading}
+            handleGenerateMovie={handleGenerateMovie}
+            handleInputKeyPress={handleInputKeyPress}
+            handleSuggestionClick={handleSuggestionClick}
+            friends={friends}
+            selectedFriend={selectedFriend}
+            setSelectedFriend={setSelectedFriend}
+            includeWatchlist={includeWatchlist}
+            setIncludeWatchlist={setIncludeWatchlist}
+          />
+        </div>
+
+        <div className="lg:col-span-2 space-y-6">
+          {error && <ErrorMessage error={error} />}
+
+          {movie && (
+            <MovieCard
+              movie={movie}
+              addToWatchlist={addToWatchlist}
+              handleGenerateMovie={handleGenerateMovie}
+              isInWatchlist={isInWatchlist}
+              setIsPosterModalOpen={setIsPosterModalOpen}
+            />
+          )}
+        </div>
+      </div>
+
+      <MoviePosterModal
+        isOpen={isPosterModalOpen}
+        onClose={() => setIsPosterModalOpen(false)}
+        posterPath={movie?.poster_path || ""}
+        title={movie?.title || ""}
       />
-
-      {error && <ErrorMessage error={error} />}
-
-      {movie && (
-        <MovieDetails
-          movie={movie}
-          addToWatchlist={addToWatchlist}
-          handleGenerateMovie={handleGenerateMovie}
-          isInWatchlist={isInWatchlist}
-        />
-      )}
     </div>
   );
 }
@@ -130,42 +155,42 @@ function SearchSection({
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="space-y-4"
+      className="space-y-6"
     >
       <div className="relative">
         <Input
           type="text"
-          placeholder="Describe the movie you're looking for..."
+          placeholder="Describe your ideal movie..."
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyPress={handleInputKeyPress}
-          className="text-xl bg-secondary shadow-inner text-foreground placeholder-muted-foreground pl-12 pr-4 py-6 rounded-full"
+          className="text-lg bg-secondary/50 shadow-inner text-foreground placeholder-muted-foreground pl-12 pr-4 py-6 rounded-xl"
         />
-        <Sparkles className="absolute left-4 top-1/2 transform -translate-y-1/2 h-6 w-6 text-muted-foreground" />
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
       </div>
+
       <SearchSuggestions onSuggestionClick={handleSuggestionClick} />
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
-        <div className="w-full sm:w-auto">
-          <Label
-            htmlFor="friend-select"
-            className="text-sm text-muted-foreground mb-1 block"
-          >
-            Select a friend
-          </Label>
-          <select
-            id="friend-select"
-            value={selectedFriend || ""}
-            onChange={(e) => setSelectedFriend(e.target.value || null)}
-            className="w-full sm:w-auto bg-secondary text-foreground rounded-md p-2 border border-input"
-          >
-            <option value="">No friend selected</option>
+
+      <div className="space-y-4">
+        <Select
+          value={selectedFriend || undefined}
+          onValueChange={(value) =>
+            setSelectedFriend(value === "none" ? null : value)
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select a friend" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No friend selected</SelectItem>
             {friends.map((friend) => (
-              <option key={friend} value={friend}>
+              <SelectItem key={friend} value={friend}>
                 {friend}
-              </option>
+              </SelectItem>
             ))}
-          </select>
-        </div>
+          </SelectContent>
+        </Select>
+
         <div className="flex items-center space-x-2">
           <Switch
             id="include-watchlist"
@@ -180,10 +205,11 @@ function SearchSection({
           </Label>
         </div>
       </div>
+
       <Button
         onClick={handleGenerateMovie}
         disabled={loading || !prompt}
-        className="w-full text-xl py-6 px-8 bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-full"
+        className="w-full text-lg py-6 bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
       >
         {loading ? "Discovering..." : "Generate Movie"}
         <Sparkles className="ml-2 h-5 w-5" />
@@ -197,12 +223,11 @@ function ErrorMessage({ error }: { error: string }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="text-red-500 mt-4 p-6 bg-red-100 rounded-lg shadow-md"
+      className="text-red-500 p-6 bg-red-100 rounded-xl shadow-md"
     >
       <p className="font-semibold">{error}</p>
       <p className="mt-2 text-sm">
-        Try adding more details like genre, time period, or specific themes
-        you&apos;ve been interested in.
+        Try adding more specific details or exploring different themes.
       </p>
     </motion.div>
   );
@@ -215,68 +240,13 @@ interface MovieDetailsProps {
   isInWatchlist: boolean;
 }
 
-function MovieDetails({
+function MovieCard({
   movie,
   addToWatchlist,
   handleGenerateMovie,
   isInWatchlist,
-}: MovieDetailsProps) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="bg-secondary p-8 rounded-3xl shadow-xl space-y-6 overflow-hidden relative"
-    >
-      <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-primary/10 to-transparent" />
-      <h3 className="text-4xl font-bold text-center relative z-10">
-        {movie.title}
-      </h3>
-      <div className="flex flex-col md:flex-row items-center justify-center gap-8">
-        <MoviePoster movie={movie} />
-        <MovieInfo
-          movie={movie}
-          addToWatchlist={addToWatchlist}
-          handleGenerateMovie={handleGenerateMovie}
-          isInWatchlist={isInWatchlist}
-        />
-      </div>
-    </motion.div>
-  );
-}
-
-function MoviePoster({ movie }: { movie: Movie }) {
-  return (
-    <motion.div
-      whileHover={{ scale: 1.05 }}
-      transition={{ duration: 0.2 }}
-      className="relative w-64 h-96 rounded-lg overflow-hidden shadow-lg"
-    >
-      {movie.poster_path ? (
-        <Image
-          src={movie.poster_path}
-          alt={movie.title}
-          layout="fill"
-          objectFit="cover"
-          className="rounded-lg"
-          placeholder="blur"
-          blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8/+F9PQAI8wNPvd7POQAAAABJRU5ErkJggg=="
-        />
-      ) : (
-        <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-          <ImageIcon className="w-16 h-16 text-gray-400" />
-        </div>
-      )}
-    </motion.div>
-  );
-}
-
-function MovieInfo({
-  movie,
-  addToWatchlist,
-  handleGenerateMovie,
-  isInWatchlist,
-}: MovieDetailsProps) {
+  setIsPosterModalOpen,
+}: MovieDetailsProps & { setIsPosterModalOpen: (isOpen: boolean) => void }) {
   const letterboxdUrl = `https://letterboxd.com/search/${encodeURIComponent(
     movie.title
   )}`;
@@ -285,48 +255,66 @@ function MovieInfo({
   )}`;
 
   return (
-    <div className="space-y-4 max-w-md">
-      <div className="flex items-center justify-center space-x-4 text-xl">
-        <Clapperboard className="h-6 w-6" />
-        <span>{movie.year}</span>
-        <span>•</span>
-        <span>{movie.director}</span>
-      </div>
-      <div className="flex items-center justify-center text-2xl">
-        <Star className="h-8 w-8 text-yellow-400 mr-2" />
-        <span className="font-bold">
-          {typeof movie.rating === "number"
-            ? movie.rating.toFixed(1)
-            : movie.rating}
-        </span>
-      </div>
-      <p className="text-lg text-muted-foreground text-center">
-        {movie.overview}
-      </p>
-      <div className="flex justify-center space-x-4 mt-2">
-        <ExternalMovieLink href={letterboxdUrl} name="Letterboxd" />
-        <ExternalMovieLink href={imdbUrl} name="IMDb" />
-      </div>
-      <div className="flex justify-center space-x-4 mt-6">
-        <MovieButton
-          onClick={() => addToWatchlist(movie)}
-          variant={isInWatchlist ? "secondary" : "primary"}
-          icon={
-            isInWatchlist ? (
-              <Check className="mr-2 h-5 w-5" />
-            ) : (
-              <BookmarkPlus className="mr-2 h-5 w-5" />
-            )
-          }
-          disabled={isInWatchlist}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="bg-card text-card-foreground rounded-xl shadow-lg overflow-hidden"
+    >
+      <div className="flex flex-col md:flex-row">
+        <div
+          className="w-full md:w-1/3 cursor-pointer"
+          onClick={() => setIsPosterModalOpen(true)}
         >
-          {isInWatchlist ? "Added to Watchlist" : "Add to Watchlist"}
-        </MovieButton>
-        <MovieButton onClick={handleGenerateMovie} variant="secondary">
-          Show Me Another
-        </MovieButton>
+          <img
+            src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+            alt={`${movie.title} poster`}
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <div className="w-full md:w-2/3 p-6 space-y-4">
+          <h3 className="text-3xl font-semibold">{movie.title}</h3>
+          <div className="flex items-center space-x-4 text-lg">
+            <Clapperboard className="h-5 w-5" />
+            <span>{movie.year}</span>
+            <span>•</span>
+            <span>{movie.director}</span>
+          </div>
+          <div className="flex items-center text-2xl">
+            <Star className="h-6 w-6 text-yellow-400 mr-2" />
+            <span className="font-bold">
+              {typeof movie.rating === "number"
+                ? movie.rating.toFixed(1)
+                : movie.rating}
+            </span>
+          </div>
+          <p className="text-base text-muted-foreground">{movie.overview}</p>
+          <div className="flex space-x-4">
+            <ExternalMovieLink href={letterboxdUrl} name="Letterboxd" />
+            <ExternalMovieLink href={imdbUrl} name="IMDb" />
+          </div>
+          <div className="flex space-x-4 mt-4">
+            <MovieButton
+              onClick={() => addToWatchlist(movie)}
+              variant={isInWatchlist ? "secondary" : "primary"}
+              icon={
+                isInWatchlist ? (
+                  <Check className="mr-2 h-5 w-5" />
+                ) : (
+                  <BookmarkPlus className="mr-2 h-5 w-5" />
+                )
+              }
+              disabled={isInWatchlist}
+            >
+              {isInWatchlist ? "In Watchlist" : "Add to Watchlist"}
+            </MovieButton>
+            <MovieButton onClick={handleGenerateMovie} variant="secondary">
+              Show Me Another
+            </MovieButton>
+          </div>
+        </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

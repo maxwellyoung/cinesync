@@ -1,10 +1,12 @@
 import { supabase } from "./supabaseClient";
 import { Database } from "./database.types";
 import { v4 as uuidv4 } from "uuid";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Movie } from "./api";
 
 type Movie = Database["public"]["Tables"]["movies"]["Row"];
 
-function generateUUID(userId: string): string {
+export function generateUUID(userId: string): string {
   return uuidv4({ random: Buffer.from(userId) });
 }
 
@@ -12,38 +14,30 @@ export async function saveToWatchlist(
   userId: string,
   movie: Omit<Movie, "id">
 ): Promise<void> {
-  const uuidUserId = generateUUID(userId);
+  const supabase = createClientComponentClient();
+  const supabaseUserId = generateUUID(userId);
 
-  // Check if the user exists in the users table
-  const { error: userError } = await supabase
-    .from("users")
-    .select("id")
-    .eq("id", uuidUserId)
-    .single();
+  try {
+    // First, ensure the user exists in the users table
+    const { error: userError } = await supabase
+      .from("users")
+      .upsert({
+        id: supabaseUserId,
+        clerk_id: userId,
+        username: `user_${supabaseUserId.slice(0, 8)}`, // Generate a temporary username
+        email: `user_${supabaseUserId.slice(0, 8)}@example.com`, // Generate a temporary email
+      })
+      .select()
+      .single();
 
-  if (userError) {
-    if (userError.code === "PGRST116") {
-      // User doesn't exist, so we'll create them
-      const { error: createUserError } = await supabase
-        .from("users")
-        .insert({ id: uuidUserId, username: `user_${userId.slice(0, 8)}` })
-        .select();
-
-      if (createUserError) {
-        console.error("Error creating user:", createUserError);
-        throw createUserError;
-      }
-    } else {
-      console.error("Error checking user:", userError);
-      throw userError;
+    if (userError) {
+      throw new Error(`Error ensuring user exists: ${userError.message}`);
     }
-  }
 
-  // First, insert the movie into the movies table
-  const { data: movieData, error: movieError } = await supabase
-    .from("movies")
-    .upsert(
-      {
+    // Then, insert or select the movie from the movies table
+    const { data: movieData, error: movieError } = await supabase
+      .from("movies")
+      .upsert({
         title: movie.title,
         year: movie.year,
         director: movie.director,
@@ -51,39 +45,41 @@ export async function saveToWatchlist(
         overview: movie.overview || "",
         poster_path: movie.poster_path || null,
         tmdb_id: movie.tmdb_id || null,
-      },
-      { onConflict: "title,year" }
-    )
-    .select()
-    .single();
+      })
+      .select()
+      .single();
 
-  if (movieError) {
-    console.error("Error saving movie:", movieError);
-    throw movieError;
-  }
-
-  // Insert the entry into the watchlist table
-  const { error: watchlistError } = await supabase.from("watchlist").insert({
-    user_id: userId,
-    movie_id: movieData.id,
-    status: "unwatched",
-  });
-
-  if (watchlistError) {
-    if (watchlistError.code === "23505") {
-      console.log("Movie already in watchlist");
-      return;
+    if (movieError) {
+      throw new Error(`Error saving movie: ${movieError.message}`);
     }
-    console.error("Error saving to watchlist:", watchlistError);
-    throw watchlistError;
+
+    // Finally, add the entry to the watchlist table
+    const { error: watchlistError } = await supabase.from("watchlist").upsert(
+      {
+        user_id: supabaseUserId,
+        movie_id: movieData.id,
+        status: "to_watch", // Add a default status
+      },
+      {
+        onConflict: "user_id,movie_id",
+      }
+    );
+
+    if (watchlistError) {
+      throw new Error(`Error saving to watchlist: ${watchlistError.message}`);
+    }
+  } catch (error) {
+    console.error("Error in saveToWatchlist:", error);
+    throw error;
   }
 }
 
 export async function getWatchlist(userId: string): Promise<Movie[]> {
+  const supabaseUserId = generateUUID(userId);
   const { data, error } = await supabase
     .from("watchlist")
     .select("*, movies(*)")
-    .eq("user_id", userId);
+    .eq("user_id", supabaseUserId);
 
   if (error) {
     console.error("Error fetching watchlist:", error);
