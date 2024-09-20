@@ -13,7 +13,7 @@ const movieIcons = [
 ];
 
 export function DotMatrix({ dots, isHovered }: DotMatrixProps) {
-  const [currentIcon, setCurrentIcon] = useState(dots);
+  const [currentIcon, setCurrentIcon] = useState<number[]>(dots);
 
   useEffect(() => {
     if (isHovered) {
@@ -27,6 +27,10 @@ export function DotMatrix({ dots, isHovered }: DotMatrixProps) {
       setCurrentIcon(dots);
     }
   }, [isHovered, dots]);
+
+  if (!currentIcon || currentIcon.length === 0) {
+    return null; // Return null or a placeholder if currentIcon is not valid
+  }
 
   return (
     <svg width="25" height="25" viewBox="0 0 25 25">

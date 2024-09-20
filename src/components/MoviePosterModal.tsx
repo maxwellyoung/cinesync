@@ -2,6 +2,7 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Button } from "./ui/button";
+import Image from "next/image";
 
 interface MoviePosterModalProps {
   isOpen: boolean;
@@ -41,10 +42,12 @@ export function MoviePosterModal({
             >
               <X className="h-6 w-6" />
             </Button>
-            <img
+            <Image
               src={`https://image.tmdb.org/t/p/original${posterPath}`}
               alt={`${title} poster`}
-              className="max-h-[80vh] max-w-[80vw] object-contain"
+              width={300}
+              height={450}
+              layout="responsive"
             />
           </motion.div>
         </motion.div>

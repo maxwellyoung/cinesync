@@ -1,33 +1,22 @@
 import { supabase } from "@/lib/supabaseClient";
-import { Database } from "./database.types";
 import { Movie } from "./types";
 
-const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
-const TMDB_BASE_URL = "https://api.themoviedb.org/3";
+// Define a type for the data we receive from Supabase
+type WatchlistItem = {
+  movies: Movie[];
+};
 
-export type Movie = Database["public"]["Tables"]["movies"]["Row"];
-export type WatchlistItem = Database["public"]["Tables"]["watchlist"]["Row"];
+// Remove these unused constants
+// const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+// const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
-async function fetchMoviePoster(
-  title: string,
-  year?: number
-): Promise<string | null> {
-  try {
-    const yearParam = year ? `&year=${year}` : "";
-    const response = await fetch(
-      `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(
-        title
-      )}${yearParam}`
-    );
-    const data = await response.json();
-    if (data.results && data.results.length > 0) {
-      return `https://image.tmdb.org/t/p/w500${data.results[0].poster_path}`;
-    }
-  } catch (error) {
-    console.error("Error fetching movie poster:", error);
-  }
-  return null;
-}
+// Remove or comment out the unused function
+// async function fetchMoviePoster(
+//   title: string,
+//   year?: number
+// ): Promise<string | null> {
+//   ...
+// }
 
 export async function getWatchlist(userId: string): Promise<Movie[]> {
   // First, get the UUID for the user
@@ -58,7 +47,16 @@ export async function getWatchlist(userId: string): Promise<Movie[]> {
     throw error;
   }
 
-  return (data?.map((item) => item.movies) as Movie[]) || [];
+  // Log the data structure
+  console.log("Watchlist data:", JSON.stringify(data, null, 2));
+
+  // Process the data
+  return (data?.flatMap((item: WatchlistItem) =>
+    item.movies.map((movie) => ({
+      ...movie,
+      posterUrl: movie.poster_path,
+    }))
+  ) || []) as Movie[];
 }
 
 async function getUserUUID(clerkUserId: string): Promise<string> {
@@ -96,10 +94,10 @@ export async function addToWatchlist(
   }
 }
 
-export async function removeFromWatchlist(
+export const removeFromWatchlist = async (
   userId: string,
   movieId: number
-): Promise<void> {
+): Promise<void> => {
   const userUUID = await getUserUUID(userId);
   const { error } = await supabase
     .from("watchlist")
@@ -110,7 +108,7 @@ export async function removeFromWatchlist(
     console.error("Error removing from watchlist:", error);
     throw error;
   }
-}
+};
 
 export async function getFriends(userId: string): Promise<string[]> {
   const { data, error } = await supabase
@@ -125,3 +123,6 @@ export async function getFriends(userId: string): Promise<string[]> {
 
   return data.map((friendship) => friendship.friend_id);
 }
+
+// Export the Movie type
+export type { Movie };

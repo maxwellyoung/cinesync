@@ -13,7 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { SearchSuggestions } from "./SearchSuggestions";
-import { Movie } from "@/lib/api";
+import { Movie } from "@/lib/types";
 import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
 import { useState } from "react";
@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import Image from "next/image";
 
 interface DiscoverSearchProps {
   prompt: string;
@@ -72,6 +73,18 @@ export function DiscoverSearch({
     handleGenerateMovie();
   };
 
+  const handleGenerateMovieWithErrorLogging = async () => {
+    try {
+      await handleGenerateMovie();
+    } catch (error) {
+      console.error("Detailed error in handleGenerateMovie:", error);
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+    }
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 p-4">
       <motion.h2
@@ -89,7 +102,7 @@ export function DiscoverSearch({
             prompt={prompt}
             setPrompt={setPrompt}
             loading={loading}
-            handleGenerateMovie={handleGenerateMovie}
+            handleGenerateMovie={handleGenerateMovieWithErrorLogging}
             handleInputKeyPress={handleInputKeyPress}
             handleSuggestionClick={handleSuggestionClick}
             friends={friends}
@@ -266,11 +279,15 @@ function MovieCard({
           className="w-full md:w-1/3 cursor-pointer"
           onClick={() => setIsPosterModalOpen(true)}
         >
-          <img
-            src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
-            alt={`${movie.title} poster`}
-            className="w-full h-full object-cover"
-          />
+          {movie.poster_path && (
+            <Image
+              src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+              alt={`${movie.title} poster`}
+              width={200}
+              height={300}
+              layout="responsive"
+            />
+          )}
         </div>
         <div className="w-full md:w-2/3 p-6 space-y-4">
           <h3 className="text-3xl font-semibold">{movie.title}</h3>

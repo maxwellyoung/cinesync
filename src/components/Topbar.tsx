@@ -11,7 +11,7 @@ import {
 import { Logo } from "./Logo";
 import { Separator } from "./ui/separator";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface TopbarProps {
   isDarkMode: boolean;
@@ -29,6 +29,25 @@ export function Topbar({
   const { user, isSignedIn } = useUser();
   const { theme } = useTheme();
   const [isGreetingHovered, setIsGreetingHovered] = useState(false);
+  const [greeting, setGreeting] = useState("Hi");
+
+  useEffect(() => {
+    const updateGreeting = () => {
+      const hour = new Date().getHours();
+      if (hour < 12) {
+        setGreeting("Good morning");
+      } else if (hour < 18) {
+        setGreeting("Good afternoon");
+      } else {
+        setGreeting("Good evening");
+      }
+    };
+
+    updateGreeting();
+    const interval = setInterval(updateGreeting, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   const bgColor = theme === "dark" ? "bg-gray-950/90" : "bg-gray-200/90";
   const textColor = theme === "dark" ? "text-white" : "text-gray-800";
@@ -75,17 +94,17 @@ export function Topbar({
                 </motion.span>
               ) : (
                 <motion.span
-                  key="hi"
+                  key="greeting"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  Hi
+                  {greeting}
                 </motion.span>
               )}
             </AnimatePresence>
-            {`, ${user?.firstName || user?.username}!`}
+            {`, ${user?.firstName || user?.username}`}
           </div>
         )}
         <div className="flex items-center space-x-2">

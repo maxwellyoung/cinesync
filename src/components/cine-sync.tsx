@@ -5,17 +5,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../components/ui/button";
 import { X } from "lucide-react";
 import { toast } from "../hooks/use-toast";
-import { generateMovie, Movie } from "../lib/api";
 import { DotMatrix } from "../components/DotMatrix";
 import { FriendManager } from "../components/FriendManager";
 import { useUser, SignUpButton } from "@clerk/nextjs";
 import { Topbar } from "../components/Topbar";
-import { saveToWatchlist } from "../lib/db";
 import { getWatchlist, removeFromWatchlist } from "../lib/api";
 import { DiscoverSearch } from "../components/DiscoverSearch";
 import { Watchlist } from "../components/Watchlist";
 import { getFriends } from "../lib/api";
 import { useTheme } from "next-themes";
+import { Movie } from "../lib/types";
 
 interface MenuCardProps {
   label: string;
@@ -312,20 +311,23 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("API error response:", errorData);
         throw new Error(
-          errorData.error || "Failed to generate movie suggestion"
+          errorData.error || `HTTP error! status: ${response.status}`
         );
       }
 
-      const generatedMovie = await response.json();
+      const generatedMovie: Movie = await response.json();
       setMovie(generatedMovie);
       setSuggestedMovies((prevSuggestedMovies) => [
         ...prevSuggestedMovies,
         generatedMovie,
       ]);
     } catch (err) {
-      console.error("Error in handleGenerateMovie:", err);
+      console.error("Detailed error in handleGenerateMovie:", err);
       if (err instanceof Error) {
+        console.error("Error message:", err.message);
+        console.error("Error stack:", err.stack);
         setError(`An error occurred: ${err.message}. Please try again.`);
       } else {
         setError("An unexpected error occurred. Please try again.");

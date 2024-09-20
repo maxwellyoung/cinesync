@@ -6,7 +6,9 @@ export interface Movie {
   rating: number;
   overview: string;
   poster_path: string | null;
-  user_id: string;
+  user_id?: string;
+  posterUrl?: string; // Add this for compatibility with DiscoverSearch
+  tmdb_id: number | null; // Add this line
 }
 
 // Remove the WatchlistMovie interface if it's not being used
