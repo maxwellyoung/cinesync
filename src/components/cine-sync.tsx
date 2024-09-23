@@ -289,11 +289,15 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
         body: JSON.stringify({
           title: movie.title,
           posterPath: movie.poster_path,
-          voteAverage: Math.round(movie.vote_average * 100), // Convert to integer (0-1000)
+          voteAverage:
+            movie.vote_average !== null
+              ? Math.round(movie.vote_average * 100)
+              : null, // Handle null case
           year: movie.year,
           director: movie.director,
           rating: Math.round(movie.rating * 100), // Convert to integer (0-1000)
           overview: movie.overview,
+          tmdbId: movie.tmdb_id,
         }),
       });
 

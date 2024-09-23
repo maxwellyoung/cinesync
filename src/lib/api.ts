@@ -55,6 +55,7 @@ export async function getWatchlist(userId: string): Promise<Movie[]> {
     item.movies.map((movie) => ({
       ...movie,
       posterUrl: movie.poster_path,
+      vote_average: movie.vote_average ?? movie.rating, // Use rating as fallback
     }))
   ) || []) as Movie[];
 }
@@ -89,7 +90,8 @@ export const addToWatchlist = async (
     movie_id: movie.id,
     title: movie.title,
     poster_path: movie.poster_path,
-    vote_average: Math.round(movie.vote_average * 10), // Round to nearest integer (0-100 scale)
+    vote_average:
+      movie.vote_average !== null ? Math.round(movie.vote_average * 10) : null, // Handle null case
     year: movie.year,
     director: movie.director,
     rating: Math.round(movie.rating * 10), // Round to nearest integer (0-100 scale)

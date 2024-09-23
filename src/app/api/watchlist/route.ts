@@ -65,8 +65,16 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log("Received request body:", body);
 
-    const { title, posterPath, voteAverage, year, director, rating, overview } =
-      body;
+    const {
+      title,
+      posterPath,
+      voteAverage,
+      year,
+      director,
+      rating,
+      overview,
+      tmdbId,
+    } = body;
 
     // Insert the movie into the movies table
     const { data: movieData, error: movieError } = await supabase
@@ -75,11 +83,12 @@ export async function POST(req: Request) {
         {
           title,
           poster_path: posterPath,
-          vote_average: voteAverage, // This is now an integer (0-1000)
+          vote_average: voteAverage, // This is now either null or an integer (0-1000)
           year,
           director,
           rating, // This is now an integer (0-1000)
           overview,
+          tmdb_id: tmdbId,
         },
         { onConflict: "title" }
       )

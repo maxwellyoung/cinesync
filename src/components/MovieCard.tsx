@@ -11,9 +11,9 @@ export function MovieCard({ movie, onAddToWatchlist }: MovieCardProps) {
   return (
     <div className="p-4 border rounded-lg shadow-md">
       <div className="relative w-full h-[300px] mb-2">
-        {movie.posterUrl ? (
+        {movie.poster_path ? (
           <Image
-            src={movie.posterUrl}
+            src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
             alt={movie.title}
             fill
             style={{ objectFit: "cover" }}
@@ -25,7 +25,7 @@ export function MovieCard({ movie, onAddToWatchlist }: MovieCardProps) {
         )}
       </div>
       <h3 className="text-lg font-semibold">{movie.title}</h3>
-      <p className="text-sm text-gray-600">{movie.year}</p>
+      <p className="text-sm text-gray-600">{movie.year.toString()}</p>
       <Button onClick={() => onAddToWatchlist(movie)} className="mt-2">
         Add to Watchlist
       </Button>
