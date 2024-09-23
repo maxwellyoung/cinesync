@@ -76,6 +76,25 @@ export async function POST(req: Request) {
       tmdbId,
     } = body;
 
+    // Check if the movie is already in the watchlist
+    const { data: existingMovie, error: checkError } = await supabase
+      .from("watchlist")
+      .select("id")
+      .eq("user_id", supabaseUserId)
+      .eq("movie_id", tmdbId)
+      .single();
+
+    if (checkError && checkError.code !== "PGRST116") {
+      // PGRST116 is the code for no rows found
+      console.error("Error checking watchlist:", checkError);
+      throw checkError;
+    }
+
+    if (existingMovie) {
+      console.log("Movie already in watchlist");
+      return NextResponse.json({ message: "Movie already in watchlist" });
+    }
+
     // Insert the movie into the movies table
     const { data: movieData, error: movieError } = await supabase
       .from("movies")

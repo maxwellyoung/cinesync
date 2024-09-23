@@ -1,11 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { Movie } from "./types";
 
-// Define a type for the data we receive from Supabase
-type WatchlistItem = {
-  movies: Movie[];
-};
-
 // Remove these unused constants
 // const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
 // const TMDB_BASE_URL = "https://api.themoviedb.org/3";
@@ -39,7 +34,7 @@ export async function getWatchlist(userId: string): Promise<Movie[]> {
   // Now use the UUID to fetch the watchlist
   const { data, error } = await supabase
     .from("watchlist")
-    .select("movies(*)")
+    .select("*, movies(*)")
     .eq("user_id", userData.id);
 
   if (error) {
@@ -51,13 +46,11 @@ export async function getWatchlist(userId: string): Promise<Movie[]> {
   console.log("Watchlist data:", JSON.stringify(data, null, 2));
 
   // Process the data
-  return (data?.flatMap((item: WatchlistItem) =>
-    item.movies.map((movie) => ({
-      ...movie,
-      posterUrl: movie.poster_path,
-      vote_average: movie.vote_average ?? movie.rating, // Use rating as fallback
-    }))
-  ) || []) as Movie[];
+  return (data?.map((item: { movies: Movie }) => ({
+    ...item.movies,
+    posterUrl: item.movies.poster_path,
+    vote_average: item.movies.vote_average ?? item.movies.rating, // Use rating as fallback
+  })) || []) as Movie[];
 }
 
 async function getUserUUID(clerkUserId: string): Promise<string> {
@@ -85,6 +78,26 @@ export const addToWatchlist = async (
   movie: Movie
 ): Promise<void> => {
   const userUUID = await getUserUUID(userId);
+
+  // Check if the movie is already in the watchlist
+  const { data: existingMovie, error: checkError } = await supabase
+    .from("watchlist")
+    .select("id")
+    .eq("user_id", userUUID)
+    .eq("movie_id", movie.id)
+    .single();
+
+  if (checkError && checkError.code !== "PGRST116") {
+    // PGRST116 is the code for no rows found
+    console.error("Error checking watchlist:", checkError);
+    throw checkError;
+  }
+
+  if (existingMovie) {
+    console.log("Movie already in watchlist");
+    return;
+  }
+
   const { error } = await supabase.from("watchlist").insert({
     user_id: userUUID,
     movie_id: movie.id,
