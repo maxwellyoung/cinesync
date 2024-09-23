@@ -10,7 +10,7 @@ import {
   BookmarkPlus,
   ExternalLink,
   Check,
-  Search,
+  Loader2,
 } from "lucide-react";
 import { SearchSuggestions } from "./SearchSuggestions";
 import { Movie } from "@/lib/types";
@@ -35,8 +35,8 @@ interface DiscoverSearchProps {
   error: string | null;
   movie: Movie | null;
   addToWatchlist: (movie: Movie) => void;
-  isInWatchlist: boolean;
-  friends: string[];
+  isInWatchlist: (movie: Movie) => boolean;
+  friends?: string[];
   selectedFriend: string | null;
   setSelectedFriend: (friend: string | null) => void;
   includeWatchlist: boolean;
@@ -52,7 +52,7 @@ export function DiscoverSearch({
   movie,
   addToWatchlist,
   isInWatchlist,
-  friends,
+  friends = [],
   selectedFriend,
   setSelectedFriend,
   includeWatchlist,
@@ -116,6 +116,17 @@ export function DiscoverSearch({
         <div className="lg:col-span-2 space-y-6">
           {error && <ErrorMessage error={error} />}
 
+          {loading && !movie && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex justify-center items-center h-64"
+            >
+              <Loader2 className="w-12 h-12 animate-spin text-primary" />
+            </motion.div>
+          )}
+
           {movie && (
             <MovieCard
               movie={movie}
@@ -164,27 +175,55 @@ function SearchSection({
   setIncludeWatchlist: (include: boolean) => void;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-6"
-    >
-      <div className="relative">
-        <Input
-          type="text"
-          placeholder="Describe your ideal movie..."
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyPress={handleInputKeyPress}
-          className="text-lg bg-secondary/50 shadow-inner text-foreground placeholder-muted-foreground pl-12 pr-4 py-6 rounded-xl"
-        />
-        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-      </div>
-
-      <SearchSuggestions onSuggestionClick={handleSuggestionClick} />
-
-      <div className="space-y-4">
+    <>
+      <Input
+        type="text"
+        placeholder="Enter a movie prompt..."
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        onKeyPress={handleInputKeyPress}
+        className="w-full"
+      />
+      <Button
+        onClick={handleGenerateMovie}
+        disabled={loading}
+        className="w-full flex items-center justify-center"
+      >
+        {loading ? (
+          <>
+            Generating
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ staggerChildren: 0.2, delayChildren: 0.2 }}
+              className="ml-2 flex"
+            >
+              {[0, 1, 2].map((i) => (
+                <motion.span
+                  key={i}
+                  animate={{
+                    y: ["0%", "-50%", "0%"],
+                    opacity: [1, 0.5, 1],
+                  }}
+                  transition={{
+                    duration: 0.6,
+                    repeat: Infinity,
+                    delay: i * 0.2,
+                  }}
+                  className="mx-0.5"
+                >
+                  .
+                </motion.span>
+              ))}
+            </motion.span>
+          </>
+        ) : (
+          <>
+            <Sparkles className="mr-2 h-4 w-4" /> Generate Movie
+          </>
+        )}
+      </Button>
+      {friends.length > 0 && (
         <Select
           value={selectedFriend || undefined}
           onValueChange={(value) =>
@@ -203,31 +242,24 @@ function SearchSection({
             ))}
           </SelectContent>
         </Select>
+      )}
 
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="include-watchlist"
-            checked={includeWatchlist}
-            onCheckedChange={setIncludeWatchlist}
-          />
-          <Label
-            htmlFor="include-watchlist"
-            className="text-sm cursor-pointer select-none"
-          >
-            Include Watchlist
-          </Label>
-        </div>
+      <div className="flex items-center space-x-2">
+        <Switch
+          id="include-watchlist"
+          checked={includeWatchlist}
+          onCheckedChange={setIncludeWatchlist}
+        />
+        <Label
+          htmlFor="include-watchlist"
+          className="text-sm cursor-pointer select-none"
+        >
+          Include Watchlist
+        </Label>
       </div>
 
-      <Button
-        onClick={handleGenerateMovie}
-        disabled={loading || !prompt}
-        className="w-full text-lg py-6 bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-      >
-        {loading ? "Discovering..." : "Generate Movie"}
-        <Sparkles className="ml-2 h-5 w-5" />
-      </Button>
-    </motion.div>
+      <SearchSuggestions onSuggestionClick={handleSuggestionClick} />
+    </>
   );
 }
 
@@ -250,7 +282,7 @@ interface MovieDetailsProps {
   movie: Movie;
   addToWatchlist: (movie: Movie) => void;
   handleGenerateMovie: () => void;
-  isInWatchlist: boolean;
+  isInWatchlist: (movie: Movie) => boolean;
 }
 
 function MovieCard({
@@ -313,17 +345,17 @@ function MovieCard({
           <div className="flex space-x-4 mt-4">
             <MovieButton
               onClick={() => addToWatchlist(movie)}
-              variant={isInWatchlist ? "secondary" : "primary"}
+              variant={isInWatchlist(movie) ? "secondary" : "primary"}
               icon={
-                isInWatchlist ? (
+                isInWatchlist(movie) ? (
                   <Check className="mr-2 h-5 w-5" />
                 ) : (
                   <BookmarkPlus className="mr-2 h-5 w-5" />
                 )
               }
-              disabled={isInWatchlist}
+              disabled={isInWatchlist(movie)}
             >
-              {isInWatchlist ? "In Watchlist" : "Add to Watchlist"}
+              {isInWatchlist(movie) ? "In Watchlist" : "Add to Watchlist"}
             </MovieButton>
             <MovieButton onClick={handleGenerateMovie} variant="secondary">
               Show Me Another

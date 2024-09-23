@@ -79,20 +79,29 @@ async function getUserUUID(clerkUserId: string): Promise<string> {
   return data.id;
 }
 
-export async function addToWatchlist(
+export const addToWatchlist = async (
   userId: string,
-  movieId: number
-): Promise<void> {
+  movie: Movie
+): Promise<void> => {
   const userUUID = await getUserUUID(userId);
-  const { error } = await supabase
-    .from("watchlist")
-    .insert({ user_id: userUUID, movie_id: movieId });
+  const { error } = await supabase.from("watchlist").insert({
+    user_id: userUUID,
+    movie_id: movie.id,
+    title: movie.title,
+    poster_path: movie.poster_path,
+    vote_average: Math.round(movie.vote_average * 10), // Round to nearest integer (0-100 scale)
+    year: movie.year,
+    director: movie.director,
+    rating: Math.round(movie.rating * 10), // Round to nearest integer (0-100 scale)
+    overview: movie.overview,
+    status: "to_watch", // Add a default status
+  });
 
   if (error) {
     console.error("Error adding to watchlist:", error);
     throw error;
   }
-}
+};
 
 export const removeFromWatchlist = async (
   userId: string,
@@ -110,18 +119,32 @@ export const removeFromWatchlist = async (
   }
 };
 
-export async function getFriends(userId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("friendships")
-    .select("friend_id")
-    .eq("user_id", userId);
+export async function getFriends(userId: string) {
+  try {
+    const { data: userData } = await supabase
+      .from("users")
+      .select("id")
+      .eq("clerk_id", userId)
+      .single();
 
-  if (error) {
+    if (!userData) {
+      throw new Error("User not found");
+    }
+
+    const { data: friendships, error } = await supabase
+      .from("friendships")
+      .select("friend_id")
+      .eq("user_id", userData.id);
+
+    if (error) {
+      throw error;
+    }
+
+    return friendships.map((friendship) => friendship.friend_id);
+  } catch (error) {
     console.error("Error fetching friends:", error);
     return [];
   }
-
-  return data.map((friendship) => friendship.friend_id);
 }
 
 // Export the Movie type

@@ -1,33 +1,39 @@
 import { supabase } from "./supabaseClient";
 import { Database } from "./database.types";
 import { v4 as uuidv4 } from "uuid";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Movie as ApiMovie } from "./api";
 
 type DbMovie = Database["public"]["Tables"]["movies"]["Row"];
 
-export function generateUUID(userId: string): string {
-  return uuidv4({ random: Buffer.from(userId) });
+export function generateUUID(): string {
+  return uuidv4();
 }
 
-export async function saveToWatchlist(
-  userId: string,
-  movie: ApiMovie
-): Promise<void> {
-  const supabase = createClientComponentClient<Database>();
-  const { error } = await supabase.from("watchlist").insert({
-    user_id: userId,
-    movie_id: movie.id,
-  });
+export async function ensureUserExists(clerkUserId: string) {
+  const { data, error } = await supabase
+    .from("users")
+    .upsert(
+      {
+        clerk_id: clerkUserId,
+        username: `user_${clerkUserId.substr(0, 8)}`,
+        email: `user_${clerkUserId.substr(0, 8)}@example.com`,
+      },
+      { onConflict: "clerk_id" }
+    )
+    .select()
+    .single();
 
   if (error) {
-    console.error("Error saving to watchlist:", error);
+    console.error("Error ensuring user exists:", error);
     throw error;
   }
+
+  return data;
 }
 
 export async function getWatchlist(userId: string): Promise<DbMovie[]> {
-  const supabaseUserId = generateUUID(userId);
+  const userData = await ensureUserExists(userId);
+  const supabaseUserId = userData.id;
+
   const { data, error } = await supabase
     .from("watchlist")
     .select("*, movies(*)")
@@ -87,18 +93,12 @@ export async function removeFriend(
 
 export async function getCombinedWatchlist(
   userId: string,
-  friendId?: string
+  friendId: string
 ): Promise<DbMovie[]> {
-  let query = supabase
+  const { data, error } = await supabase
     .from("watchlist")
     .select("*, movies(*)")
-    .eq("user_id", userId);
-
-  if (friendId) {
-    query = query.or(`user_id.eq.${friendId}`);
-  }
-
-  const { data, error } = await query;
+    .or(`user_id.eq.${userId},user_id.eq.${friendId}`);
 
   if (error) {
     console.error("Error fetching combined watchlist:", error);
@@ -108,4 +108,4 @@ export async function getCombinedWatchlist(
   return data.map((item) => item.movies as DbMovie);
 }
 
-// ... rest of the file
+// ... rest of the file remains unchanged

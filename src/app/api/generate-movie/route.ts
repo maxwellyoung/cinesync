@@ -34,8 +34,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { prompt, previousSuggestions, friendId, includeWatchlist } =
-      await req.json();
+    const {
+      prompt,
+      previousSuggestions = [],
+      friendId,
+      includeWatchlist,
+    } = await req.json();
 
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -48,9 +52,13 @@ export async function POST(req: Request) {
         {
           role: "user",
           content: `Suggest a movie based on: "${prompt}". 
-          Exclude these previously suggested movies: ${previousSuggestions.join(
-            ", "
-          )}.
+          ${
+            previousSuggestions.length > 0
+              ? `Exclude these previously suggested movies: ${previousSuggestions.join(
+                  ", "
+                )}.`
+              : ""
+          }
           ${
             friendId
               ? "Consider movies that both users might enjoy together."

@@ -9,10 +9,9 @@ import { DotMatrix } from "../components/DotMatrix";
 import { FriendManager } from "../components/FriendManager";
 import { useUser, SignUpButton } from "@clerk/nextjs";
 import { Topbar } from "../components/Topbar";
-import { getWatchlist, removeFromWatchlist } from "../lib/api";
+import { getWatchlist, removeFromWatchlist, getFriends } from "../lib/api";
 import { DiscoverSearch } from "../components/DiscoverSearch";
-import { Watchlist } from "../components/Watchlist";
-import { getFriends } from "../lib/api";
+import { Watchlist } from "./Watchlist";
 import { useTheme } from "next-themes";
 import { Movie } from "../lib/types";
 
@@ -243,18 +242,13 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
   const [view, setView] = useState<
     "menu" | "discover" | "watchlist" | "friends"
   >("menu");
-  const [movie, setMovie] = useState<Movie | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [prompt, setPrompt] = useState<string>("");
   const [watchlist, setWatchlist] = useState<Movie[]>(initialWatchlist);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
   const { user, isLoaded } = useUser();
-  const [suggestedMovies, setSuggestedMovies] = useState<Movie[]>([]);
-  const [friends, setFriends] = useState<string[]>([]);
-  const [selectedFriend, setSelectedFriend] = useState<string | null>(null);
-  const [includeWatchlist, setIncludeWatchlist] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [friends, setFriends] = useState<string[]>([]);
+  const [generatedMovie, setGeneratedMovie] = useState<Movie | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -263,16 +257,7 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
   useEffect(() => {
     if (isMounted && user) {
       getWatchlist(user.id).then(setWatchlist);
-    }
-  }, [user, isMounted]);
-
-  useEffect(() => {
-    if (isMounted && user) {
-      const fetchFriends = async () => {
-        const fetchedFriends = await getFriends(user.id);
-        setFriends(fetchedFriends);
-      };
-      fetchFriends();
+      getFriends(user.id).then(setFriends);
     }
   }, [user, isMounted]);
 
@@ -292,59 +277,24 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
     setIsModalOpen(true);
   };
 
-  const handleGenerateMovie = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/generate-movie", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt,
-          previousSuggestions: suggestedMovies.map((m) => m.title),
-          friendId: selectedFriend,
-          includeWatchlist,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API error response:", errorData);
-        throw new Error(
-          errorData.error || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      const generatedMovie: Movie = await response.json();
-      setMovie(generatedMovie);
-      setSuggestedMovies((prevSuggestedMovies) => [
-        ...prevSuggestedMovies,
-        generatedMovie,
-      ]);
-    } catch (err) {
-      console.error("Detailed error in handleGenerateMovie:", err);
-      if (err instanceof Error) {
-        console.error("Error message:", err.message);
-        console.error("Error stack:", err.stack);
-        setError(`An error occurred: ${err.message}. Please try again.`);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const addToWatchlist = async (movie: Movie) => {
     try {
+      console.log("Adding movie to watchlist:", movie);
+
       const response = await fetch("/api/watchlist", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(movie),
+        body: JSON.stringify({
+          title: movie.title,
+          posterPath: movie.poster_path,
+          voteAverage: Math.round(movie.vote_average * 100), // Convert to integer (0-1000)
+          year: movie.year,
+          director: movie.director,
+          rating: Math.round(movie.rating * 100), // Convert to integer (0-1000)
+          overview: movie.overview,
+        }),
       });
 
       if (!response.ok) {
@@ -399,13 +349,41 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
   };
 
   const isInWatchlist = (movie: Movie) => {
-    return watchlist.some(
-      (m) => m.title === movie.title && m.year === movie.year
-    );
+    return watchlist.some((m) => m.id === movie.id);
   };
 
-  const handleDiscoverClick = () => {
-    setView("discover");
+  const handleGenerateMovie = async () => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/generate-movie", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: "", // Add a prompt if needed
+          previousSuggestions: [], // Add previous suggestions if you're tracking them
+          friendId: null, // Add friend ID if implementing friend recommendations
+          includeWatchlist: false, // Set this based on user preference
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate movie");
+      }
+
+      const movie = await response.json();
+      setGeneratedMovie(movie);
+    } catch (error) {
+      console.error("Error generating movie:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate movie. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   if (!isMounted) {
@@ -479,19 +457,19 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
               className="flex-grow flex flex-col justify-start items-center space-y-8 p-4"
             >
               <DiscoverSearch
-                prompt={prompt}
-                setPrompt={setPrompt}
-                loading={loading}
+                prompt=""
+                setPrompt={() => {}}
+                loading={isGenerating}
                 handleGenerateMovie={handleGenerateMovie}
-                error={error}
-                movie={movie}
+                error={null}
+                movie={generatedMovie}
                 addToWatchlist={addToWatchlist}
-                isInWatchlist={movie ? isInWatchlist(movie) : false}
+                isInWatchlist={isInWatchlist}
                 friends={friends}
-                selectedFriend={selectedFriend}
-                setSelectedFriend={setSelectedFriend}
-                includeWatchlist={includeWatchlist}
-                setIncludeWatchlist={setIncludeWatchlist}
+                selectedFriend={null}
+                setSelectedFriend={() => {}}
+                includeWatchlist={false}
+                setIncludeWatchlist={() => {}}
               />
             </motion.div>
           )}
@@ -500,7 +478,7 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
             <Watchlist
               watchlist={watchlist}
               handleRemoveFromWatchlist={handleRemoveFromWatchlist}
-              onDiscoverClick={handleDiscoverClick}
+              onDiscoverClick={() => setView("discover")}
             />
           )}
 

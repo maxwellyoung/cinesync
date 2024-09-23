@@ -2,14 +2,18 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import {
   getWatchlist,
-  saveToWatchlist,
   removeFromWatchlist,
   addFriend,
   removeFriend,
   getCombinedWatchlist,
-  generateUUID,
+  ensureUserExists,
 } from "@/lib/db";
-import { Movie } from "@/lib/api";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function GET(req: Request) {
   const { userId } = auth();
@@ -17,19 +21,29 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseUserId = generateUUID(userId);
-  const { searchParams } = new URL(req.url);
-  const friendId = searchParams.get("friendId");
+  try {
+    const userData = await ensureUserExists(userId);
+    const supabaseUserId = userData.id;
 
-  if (friendId) {
-    const combinedWatchlist = await getCombinedWatchlist(
-      supabaseUserId,
-      generateUUID(friendId)
+    const { searchParams } = new URL(req.url);
+    const friendId = searchParams.get("friendId");
+
+    if (friendId) {
+      const combinedWatchlist = await getCombinedWatchlist(
+        supabaseUserId,
+        friendId
+      );
+      return NextResponse.json(combinedWatchlist);
+    } else {
+      const watchlist = await getWatchlist(supabaseUserId);
+      return NextResponse.json(watchlist);
+    }
+  } catch (error) {
+    console.error("Error fetching watchlist:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch watchlist" },
+      { status: 500 }
     );
-    return NextResponse.json(combinedWatchlist);
-  } else {
-    const watchlist = await getWatchlist(supabaseUserId);
-    return NextResponse.json(watchlist);
   }
 }
 
@@ -40,18 +54,72 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabaseUserId = generateUUID(userId);
-    const movie: Movie = await req.json();
-    await saveToWatchlist(supabaseUserId, movie);
-    return NextResponse.json({ success: true });
+    console.log("Clerk userId:", userId);
+
+    const userData = await ensureUserExists(userId);
+    console.log("Supabase userData:", userData);
+
+    const supabaseUserId = userData.id;
+    console.log("Supabase userId:", supabaseUserId);
+
+    const body = await req.json();
+    console.log("Received request body:", body);
+
+    const { title, posterPath, voteAverage, year, director, rating, overview } =
+      body;
+
+    // Insert the movie into the movies table
+    const { data: movieData, error: movieError } = await supabase
+      .from("movies")
+      .upsert(
+        {
+          title,
+          poster_path: posterPath,
+          vote_average: voteAverage, // This is now an integer (0-1000)
+          year,
+          director,
+          rating, // This is now an integer (0-1000)
+          overview,
+        },
+        { onConflict: "title" }
+      )
+      .select()
+      .single();
+
+    if (movieError) {
+      console.error("Supabase error:", movieError);
+      return NextResponse.json(
+        { error: `Failed to add movie: ${movieError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Then, add the movie to the user's watchlist
+    const { data, error } = await supabase
+      .from("watchlist")
+      .insert({
+        user_id: supabaseUserId,
+        movie_id: movieData.id,
+        status: "to_watch",
+      })
+      .select();
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: `Failed to add movie to watchlist: ${error.message}` },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ message: "Movie added to watchlist", data });
   } catch (error) {
-    console.error("Error adding to watchlist:", error);
+    console.error("Error adding movie to watchlist:", error);
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "An unexpected error occurred",
+        error: `Failed to add movie to watchlist: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       },
       { status: 500 }
     );
@@ -64,23 +132,33 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseUserId = generateUUID(userId);
-  const { searchParams } = new URL(req.url);
-  const movieId = searchParams.get("movieId");
-  const friendId = searchParams.get("friendId");
+  try {
+    const userData = await ensureUserExists(userId);
+    const supabaseUserId = userData.id;
 
-  if (movieId) {
-    await removeFromWatchlist(supabaseUserId, parseInt(movieId));
-  } else if (friendId) {
-    await removeFriend(supabaseUserId, generateUUID(friendId));
-  } else {
+    const { searchParams } = new URL(req.url);
+    const movieId = searchParams.get("movieId");
+    const friendId = searchParams.get("friendId");
+
+    if (movieId) {
+      await removeFromWatchlist(supabaseUserId, parseInt(movieId));
+    } else if (friendId) {
+      await removeFriend(supabaseUserId, friendId);
+    } else {
+      return NextResponse.json(
+        { error: "Movie ID or Friend ID is required" },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error in DELETE operation:", error);
     return NextResponse.json(
-      { error: "Movie ID or Friend ID is required" },
-      { status: 400 }
+      { error: "Failed to perform DELETE operation" },
+      { status: 500 }
     );
   }
-
-  return NextResponse.json({ success: true });
 }
 
 export async function PUT(req: Request) {
@@ -89,9 +167,19 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseUserId = generateUUID(userId);
-  const { friendId } = await req.json();
-  await addFriend(supabaseUserId, generateUUID(friendId));
+  try {
+    const userData = await ensureUserExists(userId);
+    const supabaseUserId = userData.id;
 
-  return NextResponse.json({ success: true });
+    const { friendId } = await req.json();
+    await addFriend(supabaseUserId, friendId);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error in PUT operation:", error);
+    return NextResponse.json(
+      { error: "Failed to perform PUT operation" },
+      { status: 500 }
+    );
+  }
 }
