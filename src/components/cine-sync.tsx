@@ -495,22 +495,6 @@ export function CineSync({ initialWatchlist }: CineSyncProps) {
               transition={{ duration: 0.3 }}
               className="flex-grow flex flex-col justify-center items-center space-y-8"
             >
-              <motion.h2
-                className="text-4xl font-light mb-4"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                Friends
-              </motion.h2>
-              <motion.p
-                className="text-center max-w-md text-xl text-muted-foreground"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                Manage your friends and share movie recommendations.
-              </motion.p>
               <FriendManager />
             </motion.div>
           )}

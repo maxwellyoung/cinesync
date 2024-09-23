@@ -230,10 +230,10 @@ function SearchSection({
             setSelectedFriend(value === "none" ? null : value)
           }
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full bg-background text-foreground">
             <SelectValue placeholder="Select a friend" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-background text-foreground">
             <SelectItem value="none">No friend selected</SelectItem>
             {friends.map((friend) => (
               <SelectItem key={friend} value={friend}>

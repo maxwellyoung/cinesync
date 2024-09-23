@@ -1,82 +1,63 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Button } from "./ui/button";
+import { useState, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
-import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
-// Remove the Avatar import if you don't have this component
-// import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Button } from "./ui/button";
+import { toast } from "../hooks/use-toast";
 
 export function FriendManager() {
-  const [friendEmail, setFriendEmail] = useState("");
-  const [friends, setFriends] = useState([
-    { id: "1", name: "John Doe", email: "john@example.com" },
-    { id: "2", name: "Jane Smith", email: "jane@example.com" },
-  ]);
+  const { user } = useUser();
+  const [friends, setFriends] = useState<string[]>([]);
+  const [newFriend, setNewFriend] = useState("");
 
-  const handleAddFriend = () => {
-    console.log("Adding friend:", friendEmail);
-    setFriendEmail("");
+  useEffect(() => {
+    if (user) {
+      fetchFriends();
+    }
+  }, [user]);
+
+  const fetchFriends = async () => {
+    // TODO: Implement API call to fetch friends
+    // For now, we'll use dummy data
+    setFriends(["Friend 1", "Friend 2"]);
   };
 
-  const handleRemoveFriend = (id: string) => {
-    setFriends(friends.filter((friend) => friend.id !== id));
+  const addFriend = async () => {
+    if (newFriend.trim() === "") {
+      toast({
+        title: "Error",
+        description: "Please enter a valid friend name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // TODO: Implement API call to add friend
+    setFriends([...friends, newFriend]);
+    setNewFriend("");
+    toast({
+      title: "Success",
+      description: `${newFriend} added to your friends list`,
+    });
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Add a Friend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex space-x-2">
-            <Input
-              type="email"
-              placeholder="Friend's email"
-              value={friendEmail}
-              onChange={(e) => setFriendEmail(e.target.value)}
-            />
-            <Button onClick={handleAddFriend}>Add</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Your Friends</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <motion.ul className="space-y-4">
-            {friends.map((friend) => (
-              <motion.li
-                key={friend.id}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="flex items-center justify-between bg-secondary p-4 rounded-lg border border-secondary-foreground/10"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-bold">
-                    {friend.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="font-medium">{friend.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {friend.email}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  onClick={() => handleRemoveFriend(friend.id)}
-                >
-                  Remove
-                </Button>
-              </motion.li>
-            ))}
-          </motion.ul>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      <h2 className="text-2xl font-bold">Manage Friends</h2>
+      <div className="flex space-x-2">
+        <Input
+          value={newFriend}
+          onChange={(e) => setNewFriend(e.target.value)}
+          placeholder="Enter friend's name"
+        />
+        <Button onClick={addFriend}>Add Friend</Button>
+      </div>
+      <ul className="space-y-2">
+        {friends.map((friend) => (
+          <li key={friend} className="bg-secondary p-2 rounded">
+            {friend}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
